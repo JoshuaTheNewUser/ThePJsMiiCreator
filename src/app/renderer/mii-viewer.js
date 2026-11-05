@@ -498,7 +498,7 @@ class MiiViewer {
         (s.scene.name = `${a}-body-root`),
         this.#r.add(s.scene),
         this.initAnimation(l, `animation-${a}`),
-        r === "wiiu" || r === "wii" || r === "switch" || r === "miitomo" || r === "streetpass")
+        r === "wiiu" || r === "baby" || r === "mae" || r === "wiiu" ||r === "wiiplay" || r === "switch" || r === "miitomo" || r === "streetpass")
       ) {
         let h;
         (s.scene.traverse((p) => {
