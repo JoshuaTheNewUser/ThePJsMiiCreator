@@ -398,7 +398,7 @@ All data is permanently lost and cannot be recovered!`),
           choices: [
             { label: () => translate("Wii"), value: "wii" },
             { label: () => translate("Baby"), value: "baby" }
-            { label: () => translate("MAE"), value: "wii" }
+            { label: () => translate("MAE"), value: "mae" }
             { label: () => translate("Wii Play"), value: "wiiplay" }
             { label: () => translate("Wii U"), value: "wiiu" },
             { label: () => translate("Switch"), value: "switch" },
