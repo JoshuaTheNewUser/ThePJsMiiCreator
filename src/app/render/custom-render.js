@@ -603,7 +603,19 @@ Please use a Chromium-based browser for the best experience.`,
       C = getDefaultBodyModelName(),
       R = getCurrentShaderType(),
       B = 0;
-    if (C in Ma) B = Ma[C].count + 1;
+    if (C === "baby") {
+      const babyBodyModel = getBodyModels().get("baby");
+      const babyPoseNames = [
+        ...(babyBodyModel?.get(0)?.model?.animations ?? []),
+        ...(babyBodyModel?.get(1)?.model?.animations ?? []),
+      ]
+        .map((animation) => animation.name)
+        .filter((name) => /^Pose\.\d{2}$/.test(name));
+
+      B = new Set(babyPoseNames).size;
+    } else if (C in Ma) {
+      B = Ma[C].count + 1;
+    }
     let L = Array(B).fill(0),
       k = L.length + EXPRESSIONS.length,
       z = 0;
