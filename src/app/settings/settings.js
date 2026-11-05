@@ -397,6 +397,9 @@ All data is permanently lost and cannot be recovered!`),
           default: "miitomo",
           choices: [
             { label: () => translate("Wii"), value: "wii" },
+            { label: () => translate("Baby"), value: "baby" }
+            { label: () => translate("MAE"), value: "wii" }
+            { label: () => translate("Wii Play"), value: "wiiplay" }
             { label: () => translate("Wii U"), value: "wiiu" },
             { label: () => translate("Switch"), value: "switch" },
             { label: () => translate("Miitomo"), value: "miitomo", headerIcon: SVG_ICONS.clothesSm },
