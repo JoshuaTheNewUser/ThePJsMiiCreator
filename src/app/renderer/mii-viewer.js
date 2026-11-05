@@ -748,6 +748,9 @@ class MiiViewer {
           this.bodyModel === "switch" ||
           this.bodyModel === "miitomo" ||
           this.bodyModel === "wii" ||
+          this.bodyModel === "mae" ||
+          this.bodyModel === "baby" ||
+          this.bodyModel === "wiiplay" ||
           this.bodyModel === "streetpass"
         )
           d.scale.set(1, 1, 1);
