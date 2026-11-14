@@ -200,8 +200,14 @@ This message will only appear once this session.`),
         item: `<img width=96 height=96 src="${F.url}" title="${F.name}" style="margin:-10px;pointer-events:none">`,
       }))
       .filter((F) => F !== void 0),
+    animationClips = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips,
+    defaultAnimation = animationClips?.has("Finish")
+      ? "Finish"
+      : animationClips?.has("Pose.01")
+        ? "Pose.01"
+        : animationClips?.keys().next().value || "Pose.01",
     m = {
-      main: { type: 5, pose: d(), bodyModel: n, expression: 0, exportMode: "pose", animation: "Pose.01" },
+      main: { type: 5, pose: d(), bodyModel: n, expression: 0, exportMode: "pose", animation: defaultAnimation },
       extras: {
         attachHead: !1,
         clothes: -1,
@@ -374,18 +380,14 @@ Can help in some programs (i.e. game engines).`),
     createDropdown(
       P2,
       (() => {
-        let F = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips;
-        let te = F ? Array.from(F.keys()) : [];
-        if (!te.length) te = ["Pose.01"];
-        return te.map((he) => ({ id: he, item: he }));
+        let F = animationClips ? Array.from(animationClips.keys()) : [];
+        if (!F.length) F = ["Pose.01"];
+        return F.map((he) => ({ id: he, item: he }));
       })(),
       (F) => {
         m.main.animation = F;
       },
-      (() => {
-        let F = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips;
-        return F?.has("Finish") ? "Finish" : F?.has("Pose.01") ? "Pose.01" : F?.keys().next().value || "Pose.01";
-      })(),
+      defaultAnimation,
       "180px",
     ),
     P1.style({ display: "flex" }),
@@ -692,7 +694,7 @@ function exportMiiModel(e, t, r, animationName, i) {
     if (e.main.type === 5) {
       let S = v.miiGroup,
         E = new d.AnimationMixer(S),
-        T = b.clips.get(animationName || "Pose.01"),
+        T = b.clips.get(animationName || "Pose.01") || b.clips.get("Pose.01"),
         M = _k(T, "skl_root", "nw4f_root"),
         C = E.clipAction(M);
       if ((C.play(), (C.timeScale = 0), (C.time = 0), E.update(0), e.main.bodyModel)) {
