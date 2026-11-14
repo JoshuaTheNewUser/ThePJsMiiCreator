@@ -1,0 +1,16 @@
+FFL.js source and binary references
+
+Project: https://github.com/ariankordi/FFL.js
+Version used for the browser bundle and Emscripten loader: v2.2.2
+License: AGPL-3.0-only (see AGPL-3.0.txt)
+
+The browser bundle and loader in this folder are unmodified upstream distribution files.
+The corresponding upstream JavaScript sources, build configuration, and documentation are
+available at:
+https://github.com/ariankordi/FFL.js/tree/v2.2.2
+
+The FFL WebAssembly binary is loaded at runtime from:
+https://raw.githubusercontent.com/ariankordi/FFL.js/v2.2.2/ffl-emscripten.wasm
+
+This project does not include Nintendo's FFL resource archive. Users must provide a
+compatible resource file themselves.
