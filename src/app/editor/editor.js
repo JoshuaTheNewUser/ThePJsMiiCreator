@@ -1980,16 +1980,34 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     }
     const panel = new Html("div").style({
       position: "absolute", top: "4.5rem", right: "1rem",
-      width: "min(380px, calc(100vw - 2rem))", "max-height": "78vh",
+      width: "min(410px, calc(100vw - 2rem))", "max-height": "80vh",
       overflow: "auto", padding: "14px", display: "flex",
       "flex-direction": "column", gap: "9px", color: "var(--text)",
       background: "var(--container)", border: "1px solid var(--stroke)",
       "border-radius": "12px", "z-index": "7",
     });
-    const title = new Html("div").text("🎭 Asset Expression Creator").style({ "font-weight": "700" });
-    const note = new Html("div").text("Build an expression from the same numeric face-part assets used by the Mii editor. Preview it on this Mii, save it locally, or export a PJ expression .dat file.").style({ "font-size": "0.82rem", opacity: "0.85" });
+    const title = new Html("div").text("🎭 Expression & Asset Studio").style({ "font-weight": "700" });
+    const note = new Html("div").text("Create expressions with the native Custom Render catalogue or build your own face from Mii eyebrow, eye and mouth assets. Both types share one local preset library.").style({ "font-size": "0.82rem", opacity: "0.85" });
     const key = "thepjsmiicreator-expression-presets-v2";
-    const original = {};
+    const nativeExpressions = [
+      ["Normal",0],["Smile",1],["Anger",2],["Sorrow",3],["Surprise",4],["Blink",5],
+      ["Normal (open mouth)",6],["Smile (open mouth)",7],["Anger (open mouth)",8],["Sorrow (open mouth)",9],
+      ["Surprise (open mouth)",10],["Blink (open mouth)",11],["Wink (left eye open)",12],["Wink (right eye open)",13],
+      ["Wink (left eye and mouth open)",14],["Wink (right eye and mouth open)",15],["Wink (left eye open and smiling)",16],
+      ["Wink (right eye open and smiling)",17],["Frustrated",18],["Bored",19],["Bored open mouth",20],
+      ["Sigh mouth straight",21],["Sigh",22],["Disgusted mouth straight",23],["Disgusted",24],["Love",25],
+      ["Love mouth open",26],["Determined mouth straight",27],["Determined",28],["Cry mouth straight",29],["Cry",30],
+      ["Big smile mouth straight",31],["Big smile",32],["Cheeky",33],["Cheeky (mirror)",34],
+      ["Resolve eyes funny mouth",35],["Resolve eyes funny mouth open",36],["Smug",37],["Smug mouth open",38],
+      ["Resolve",39],["Resolve mouth open",40],["Unbelievable",41],["Cunning",43],["Raspberry",45],
+      ["Innocent",47],["Innocent (mirror)",48],["Cat",49],["Dog",51],["Tasty",53],
+      ["Money mouth straight",55],["Money",56],["Confused mouth straight",57],["Confused",58],
+      ["Cheerful mouth straight",59],["Cheerful",60],["Blank",61],["Grumble mouth straight",63],["Grumble",64],
+      ["Moved mouth straight",65],["Moved (pleading face)",66],["Singing mouth small",67],["Singing",68],
+      ["Stunned",69],["Demotivated",70],["Cunning (alternate)",71],["Full",72],["Sleepy",73],
+      ["Sleepy (right eye open)",74],["Confused (alternate)",75],["Woozy",76],["Wink (Joy)",77],
+      ["Wink (Joy, mirrored)",78],["Uninterested",79],["Mischievous",80],["Mad",81],
+    ];
     const fields = {
       eyebrowType: { label: "Eyebrow asset", max: 23 },
       eyeType: { label: "Eye asset", max: 59 },
@@ -2000,22 +2018,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       eyeY: { label: "Eye vertical position", max: 31 },
       eyebrowY: { label: "Eyebrow vertical position", max: 31 },
     };
+    const original = Object.fromEntries(Object.keys(fields).map(field => [field, Number(this.mii[field]) || 0]));
+    const status = new Html("div").text("Choose a mode, then preview or save your expression.").style({ "font-size": "0.8rem", "white-space": "pre-wrap" });
+    const mode = new Html("select").style({ width: "100%", padding: "8px", color: "var(--text)", background: "var(--background)" });
+    new Html("option").attr({ value: "native" }).text("Native Custom Render expression").appendTo(mode);
+    new Html("option").attr({ value: "custom" }).text("Custom face-part assets").appendTo(mode);
+    const nativeSelect = new Html("select").style({ width: "100%", padding: "8px", color: "var(--text)", background: "var(--background)" });
+    for (const [label, id] of nativeExpressions) new Html("option").attr({ value: String(id) }).text(label + " · " + id).appendTo(nativeSelect);
+    const nativeWrap = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "4px" });
+    nativeWrap.append(new Html("label").text("Native expression catalogue"), nativeSelect);
+    const assetWrap = new Html("div").style({ display: "none", "flex-direction": "column", gap: "7px" });
     const controls = {};
-    const status = new Html("div").text("Choose assets and preview your expression.").style({ "font-size": "0.8rem" });
-    const read = () => {
-      try {
-        const data = JSON.parse(localStorage.getItem(key) || "[]");
-        return Array.isArray(data) ? data.filter(item =>
-          item && typeof item.name === "string" && item.assets &&
-          Object.entries(fields).every(([field, config]) =>
-            Number.isInteger(item.assets[field]) && item.assets[field] >= 0 && item.assets[field] <= config.max
-          )
-        ) : [];
-      } catch { return []; }
-    };
-    let presets = read();
     for (const [field, config] of Object.entries(fields)) {
-      original[field] = Number(this.mii[field]) || 0;
       const wrap = new Html("label").style({ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "0.85rem" });
       wrap.append(new Html("span").text(config.label));
       const select = new Html("select").style({ width: "100%", padding: "7px", color: "var(--text)", background: "var(--background)" });
@@ -2024,14 +2038,39 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       select.val(String(original[field]));
       controls[field] = select;
       wrap.append(select);
-      panel.append(wrap);
+      assetWrap.append(wrap);
     }
+    const modeChanged = () => {
+      const custom = mode.getValue() === "custom";
+      nativeWrap.style({ display: custom ? "none" : "flex" });
+      assetWrap.style({ display: custom ? "flex" : "none" });
+    };
+    mode.on("change", modeChanged);
     const name = new Html("input").attr({ type: "text", maxlength: "40", placeholder: "Name this expression…" }).style({ width: "100%", padding: "8px", "box-sizing": "border-box" });
     const saved = new Html("select").style({ width: "100%", padding: "8px", color: "var(--text)", background: "var(--background)" });
     const button = (label, callback) => addButtonSounds(new Html("button").text(label).style({ width: "100%" }).on("click", callback));
     const values = () => Object.fromEntries(Object.entries(controls).map(([field, select]) => [field, Number(select.getValue())]));
-    const apply = async (assets) => {
-      for (const [field, value] of Object.entries(assets)) {
+    const read = () => {
+      try {
+        const data = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(data) ? data.filter(item => {
+          if (!item || typeof item.name !== "string") return false;
+          if (item.mode === "native") return nativeExpressions.some(([, id]) => id === Number(item.nativeExpression));
+          return item.assets && Object.entries(fields).every(([field, config]) =>
+            Number.isInteger(item.assets[field]) && item.assets[field] >= 0 && item.assets[field] <= config.max);
+        }) : [];
+      } catch { return []; }
+    };
+    let presets = read();
+    const current = () => mode.getValue() === "native"
+      ? { mode: "native", nativeExpression: Number(nativeSelect.getValue()) }
+      : { mode: "custom", assets: values() };
+    const apply = async (preset) => {
+      if (preset.mode === "native") {
+        status.text("Native expression selected: " + (nativeExpressions.find(([, id]) => id === Number(preset.nativeExpression))?.[0] || preset.nativeExpression) + ". Apply it in Custom Render to use the native FFL expression renderer.");
+        return;
+      }
+      for (const [field, value] of Object.entries(preset.assets || {})) {
         if (fields[field]) this.mii[field] = Math.max(0, Math.min(fields[field].max, Number(value) || 0));
       }
       await this.render(true, 0, 1);
@@ -2039,32 +2078,34 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     const refresh = () => {
       saved.elm.replaceChildren();
       new Html("option").attr({ value: "" }).text("Saved expressions…").appendTo(saved);
-      presets.forEach((preset, index) => new Html("option").attr({ value: String(index) }).text(preset.name).appendTo(saved));
+      presets.forEach((preset, index) => new Html("option").attr({ value: String(index) }).text((preset.mode === "native" ? "FFL · " : "Assets · ") + preset.name).appendTo(saved));
     };
     const save = () => {
       const label = name.getValue().trim();
-      if (!label) return Notify.show("Expression Creator", "Give this expression a name first.");
-      const preset = { name: label.slice(0, 40), assets: values(), version: 2, createdAt: new Date().toISOString() };
+      if (!label) return Notify.show("Expression Studio", "Give this expression a name first.");
+      const data = current();
+      const preset = { ...data, name: label.slice(0, 40), version: 3, createdAt: new Date().toISOString() };
       presets.push(preset);
       try {
-        localStorage.setItem(key, JSON.stringify(presets.slice(-100)));
         presets = presets.slice(-100);
+        localStorage.setItem(key, JSON.stringify(presets));
         refresh();
-        status.text("Saved " + preset.name + " to this browser.");
+        status.text("Saved " + preset.name + " (" + (preset.mode === "native" ? "native FFL" : "custom assets") + ") to this browser.");
       } catch (error) {
         presets.pop();
         Notify.show("Save failed", String(error?.message || error));
       }
     };
     const exportCustom = () => {
-      const payload = { format: "ThePJsMiiCreator.ExpressionDAT", version: 2, name: name.getValue().trim() || "Custom Expression", assets: values() };
+      const data = current();
+      const payload = { format: "ThePJsMiiCreator.ExpressionDAT", version: 3, name: name.getValue().trim() || "Custom Expression", ...data };
       const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/octet-stream" }));
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = (payload.name.replace(/[^a-z0-9_-]+/gi, "_") || "expression") + ".dat";
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status.text("Exported PJ Expression .dat (custom format).");
+      status.text("Exported PJ Expression .dat (version 3 custom format).");
     };
     const exportMii = () => {
       try {
@@ -2085,40 +2126,62 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       if (!file) return;
       try {
         const data = JSON.parse(await file.text());
-        if (data?.format !== "ThePJsMiiCreator.ExpressionDAT" || data.version !== 2 || !data.assets)
-          throw Error("This is not a supported PJ Expression .dat file. Nintendo Mii DAT files are exported separately.");
-        await apply(data.assets);
+        if (data?.format !== "ThePJsMiiCreator.ExpressionDAT" || ![2,3].includes(data.version))
+          throw Error("Unsupported PJ Expression .dat file. Nintendo Mii CharInfo files are not expression presets.");
+        let preset;
+        if (data.mode === "native" || (data.version === 3 && Number.isInteger(data.nativeExpression))) {
+          if (!nativeExpressions.some(([, id]) => id === Number(data.nativeExpression))) throw Error("Unknown native FFL expression ID.");
+          preset = { mode: "native", nativeExpression: Number(data.nativeExpression) };
+          mode.val("native"); nativeSelect.val(String(preset.nativeExpression));
+        } else {
+          const assets = data.assets || {};
+          if (!Object.entries(fields).every(([field, config]) => Number.isInteger(assets[field]) && assets[field] >= 0 && assets[field] <= config.max))
+            throw Error("The custom asset data is incomplete or outside the supported ranges.");
+          preset = { mode: "custom", assets };
+          mode.val("custom");
+          for (const [field, select] of Object.entries(controls)) select.val(String(assets[field]));
+        }
+        modeChanged();
         name.val(String(data.name || "Imported expression"));
-        status.text("Imported and applied " + (data.name || "expression") + ".");
+        await apply(preset);
+        status.text("Imported " + (data.name || "expression") + ".");
       } catch (error) { Notify.show("Expression import failed", String(error?.message || error)); }
     });
     saved.on("change", async () => {
       const preset = presets[Number(saved.getValue())];
       if (!preset) return;
       name.val(preset.name);
-      for (const [field, select] of Object.entries(controls)) select.val(String(preset.assets[field]));
-      await apply(preset.assets);
-      status.text("Applied " + preset.name + ".");
+      mode.val(preset.mode === "native" ? "native" : "custom");
+      modeChanged();
+      if (preset.mode === "native") nativeSelect.val(String(preset.nativeExpression));
+      else for (const [field, select] of Object.entries(controls)) select.val(String(preset.assets[field]));
+      await apply(preset);
     });
     panel.appendMany(
       title, note,
-      new Html("div").text("Save / load").style({ "font-weight": "700" }),
+      new Html("div").text("Expression type").style({ "font-weight": "700" }),
+      mode, nativeWrap, assetWrap,
+      new Html("div").text("Shared expression library").style({ "font-weight": "700" }),
       name, button("＋ Save expression", save), saved,
-      button("👁 Apply expression to Mii", () => apply(values())),
+      button("👁 Preview custom assets on Mii", () => {
+        if (mode.getValue() !== "custom") return status.text("Native FFL expressions are applied in Custom Render, where the native expression renderer is available.");
+        apply(current());
+      }),
       button("📤 Export PJ Expression .dat", exportCustom),
       button("📥 Import PJ Expression .dat", () => importInput.elm.click()),
       button("🧬 Export Nintendo Mii CharInfo .dat", exportMii),
       importInput, status,
-      button("Restore original face", () => apply(original)),
+      button("Restore original face", () => apply({ mode: "custom", assets: original })),
       button("Close", () => {
         panel.cleanup();
         this.ui.expressionCreatorPanel = null;
-        apply(original);
+        apply({ mode: "custom", assets: original });
       }),
     );
     this.ui.mii.append(panel);
     this.ui.expressionCreatorPanel = panel;
     refresh();
+    modeChanged();
   }
   openSecretVault() {
     if (this.ui.secretVaultPanel) {
