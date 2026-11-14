@@ -438,6 +438,10 @@
       "description": "Render menu and the editor's save handler."
     },
     {
+      "file": "app/library/mii-tts-generator.js",
+      "description": "Mii TTS Generator: Talkmodachi-compatible voice controls and speech rendering."
+    },
+    {
       "file": "app/library/library.js",
       "description": "The library screen: icons, /api/library requests, Mii pickers, Personal Mii."
     },
