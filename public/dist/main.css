@@ -6007,3 +6007,91 @@ html[data-color-scheme=dark] .library-list-mii:hover {
   background-color: var(--selection-color);
   background-color: var(--text-selected);
 }
+
+/* ThePJ's Mii Creator — Windows 7 Aero theme */
+:root[data-theme=windows7] {
+  color-scheme: light;
+  --eye-color: #526b80;
+  --selection-color: #3399ff;
+  --primary-color: #1674c4;
+  --error-color: #c43b36;
+  --gold-color: #c58b18;
+  --root: #dceaf5ee;
+  --root-solid: #dceaf5;
+  --unfocused: #b8cbdc;
+  --button-fill: #f7fbff !important;
+  --text: #142b40;
+  --text-selected: #ffffff;
+  --label: #45647e;
+  --stroke: #8daec7;
+  --stroke-dim: #c4d7e6;
+  --stroke-rgb: 141, 174, 199;
+  --container: #eaf5fcbb;
+  --container-solid: #eaf5fc;
+  --sub-container: #f5fbffcc;
+  --hover: #c9e5f8;
+  --hover-transparent: #c9e5f877;
+  --focus: #d8efffee;
+  --icon-face-fill: #ffffff;
+  --icon-face-stroke: #526b80;
+  --icon-face-detail: #8d8d8d;
+  --icon-face-makeup: #ffbaba;
+  --icon-face-wrinkles: #996d54;
+  --icon-head-fill: #ffffff;
+  --icon-head-stroke: #999999;
+  --icon-hair-fill: currentColor;
+  --icon-eyebrow-fill: currentColor;
+  --icon-facial-hair-fill: currentColor;
+  --icon-mouth-tooth: #ffffff;
+  --icon-glasses-fill: #000000;
+  --icon-glasses-shade: #606060;
+  --icon-lip-color-top: #712a04;
+  --icon-lip-color-bottom: #be4e26;
+}
+:root[data-theme=windows7] html,
+:root[data-theme=windows7] body,
+:root[data-theme=windows7] .body-like {
+  background: linear-gradient(145deg, #d9efff 0%, #8fc5e8 48%, #eaf7ff 100%) fixed !important;
+}
+:root[data-theme=windows7] button,
+:root[data-theme=windows7] input,
+:root[data-theme=windows7] select {
+  border: 1px solid #7f9db9;
+  border-radius: 4px;
+  background: linear-gradient(to bottom, #ffffff 0%, #f4f9fd 48%, #dceaf5 51%, #eaf4fb 100%);
+  color: #17344c;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 2px #45647e33;
+}
+:root[data-theme=windows7] button:hover {
+  border-color: #3c8dcc;
+  background: linear-gradient(to bottom, #ffffff 0%, #e8f6ff 48%, #c6e7fa 51%, #e2f3fc 100%);
+}
+:root[data-theme=windows7] button:active,
+:root[data-theme=windows7] button.selected-setting {
+  background: linear-gradient(to bottom, #c4e4f7, #eaf7ff);
+  border-color: #4389b8;
+}
+:root[data-theme=windows7] .modal .modal-content,
+:root[data-theme=windows7] .modal-content,
+:root[data-theme=windows7] .ui-base > .tab-content,
+:root[data-theme=windows7] .tab-content {
+  background: linear-gradient(145deg, #f8fcffed, #dcecf8ed);
+  border: 1px solid #8baec8;
+  box-shadow: 0 8px 28px #315b7a33, inset 0 1px 0 #ffffff;
+}
+:root[data-theme=windows7] .feature-set-group,
+:root[data-theme=windows7] .feature-item,
+:root[data-theme=windows7] .feature-switch-item,
+:root[data-theme=windows7] .tab-list {
+  border-color: #9ab8cf;
+}
+:root[data-theme=windows7] .feature-item.active,
+:root[data-theme=windows7] .feature-switch-item.active,
+:root[data-theme=windows7] .tab-list .tab-square.active {
+  background: linear-gradient(to bottom, #e8f7ff, #b9def3);
+  border-color: #4389b8;
+}
+:root[data-theme=windows7] .ui-base button,
+:root[data-theme=windows7] .modal button {
+  text-shadow: 0 1px 0 #ffffff;
+}
