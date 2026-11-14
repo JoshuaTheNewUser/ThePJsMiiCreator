@@ -478,6 +478,10 @@
       "description": "First-run setup (theme, colour, shader, Personal Mii)."
     },
     {
+      "file": "app/mii/ffl-resource-tools.js",
+      "description": "JavaScript FFRA archive parser, GLB mesh exporter and PNG texture extractor."
+    },
+    {
       "file": "app/mii/mii-toolkit.js",
       "description": "PJ Mii Toolkit: local format inspector/converter and curated Mii ecosystem project hub."
     },
