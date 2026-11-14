@@ -633,12 +633,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       },
       replayButton = makeButton("↻ Replay", play),
       skipButton = makeButton("Skip to ending", finish),
-      closeButton = makeButton("Close cutscene", () => {
-        closed = true;
-        restore();
-        panel.cleanup();
-        this.ui.sandboxCutscenePanel = null;
-      }),
+      closeButton = makeButton("Close cutscene", () => this.ui.sandboxCutsceneCleanup?.()),
       buttons = new Html("div").style({
         display: "flex", "flex-wrap": "wrap", "justify-content": "center", gap: "10px",
       });
@@ -646,6 +641,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     panel.appendMany(eyebrow, title, sceneText, progress, buttons);
     this.ui.mii.append(panel);
     this.ui.sandboxCutscenePanel = panel;
+    this.ui.sandboxCutsceneCleanup = () => {
+      closed = true;
+      restore();
+      panel.cleanup();
+      this.ui.sandboxCutscenePanel = null;
+      this.ui.sandboxCutsceneCleanup = null;
+    };
     play();
   }
   openModelLab() {
@@ -1509,6 +1511,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     if (this.secretKeyHandler) document.removeEventListener("keydown", this.secretKeyHandler);
     if (this.ui?.secretVaultPanel) this.ui.secretVaultPanel.cleanup();
     if (this.ui?.sandboxPanel) this.ui.sandboxPanel.cleanup();
+    if (this.ui?.sandboxCutsceneCleanup) this.ui.sandboxCutsceneCleanup();
     if (this.ui?.secretVaultButton) this.ui.secretVaultButton.cleanup();
     if ((document.removeEventListener("pointerdown", dG), this.#o)) this.#o();
     if (e) {
