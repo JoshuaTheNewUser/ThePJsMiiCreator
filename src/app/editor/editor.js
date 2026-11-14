@@ -487,11 +487,17 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     let actions = body.actions;
     if (actions) actions.forEach((action) => (action.paused = true));
     let originals = new Map(),
+      originalScales = new Map(),
       offsets = new Map();
     for (let bone of bones) {
       originals.set(bone.name, bone.quaternion.clone());
+      originalScales.set(bone.name, bone.scale.clone());
       offsets.set(bone.name, { x: 0, y: 0, z: 0 });
     }
+    // Prefer a dedicated abdomen/waist bone; use the lower spine only as a fallback.
+    let bellyBone =
+      bones.find((bone) => /belly|abdomen|stomach|waist/i.test(bone.name)) ||
+      bones.find((bone) => /spine|torso/i.test(bone.name));
     let panel = new Html("div").classOn("custom-pose-maker-panel").style({
         position: "absolute",
         top: "4.5rem",
@@ -559,6 +565,29 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       axisX = makeAxisControl("x"),
       axisY = makeAxisControl("y"),
       axisZ = makeAxisControl("z"),
+      bellyLabel = new Html("label").style({
+        display: "flex",
+        "justify-content": "space-between",
+        "align-items": "center",
+        gap: "8px",
+      }),
+      bellyValue = new Html("span").text("100%"),
+      bellyInput = new Html("input").attr({
+        type: "range",
+        min: "75",
+        max: "150",
+        step: "1",
+        value: "100",
+        disabled: bellyBone ? null : "disabled",
+      }).style({ width: "100%" }),
+      applyBelly = () => {
+        if (!bellyBone) return;
+        let amount = Number(bellyInput.getValue()) / 100,
+          base = originalScales.get(bellyBone.name);
+        bellyBone.scale.set(base.x * amount, base.y, base.z * amount);
+        bellyBone.updateMatrixWorld(!0);
+        bellyValue.text(Math.round(amount * 100) + "%");
+      },
       applyBone = (name) => {
         let bone = bones.find((item) => item.name === name),
           offset = offsets.get(name),
@@ -591,6 +620,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         for (let bone of bones) {
           offsets.set(bone.name, { x: 0, y: 0, z: 0 });
           bone.quaternion.copy(originals.get(bone.name));
+          bone.scale.copy(originalScales.get(bone.name));
           bone.updateMatrixWorld(!0);
         }
         updateControls();
@@ -625,6 +655,8 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         .text(bones[index].name || "Bone " + index)
         .appendTo(boneSelect);
     boneSelect.on("change", updateControls);
+    bellyLabel.appendMany(new Html("span").text(translate("Belly size")), bellyValue);
+    bellyInput.on("input", applyBelly);
     let buttons = new Html("div").style({
       display: "grid",
       "grid-template-columns": "1fr 1fr",
@@ -635,12 +667,19 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       makeButton(translate("Reset all"), resetAll),
       makeButton(translate("Export pose JSON"), exportPose),
       makeButton(translate("Close"), () => {
+        for (let bone of bones) {
+          bone.quaternion.copy(originals.get(bone.name));
+          bone.scale.copy(originalScales.get(bone.name));
+          bone.updateMatrixWorld(!0);
+        }
         panel.cleanup();
         this.ui.customPoseMakerPanel = null;
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls, buttons);
+    panel.appendMany(heading, help, boneSelect, axisControls);
+    if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
+    panel.append(buttons);
     this.ui.mii.append(panel);
     this.ui.customPoseMakerPanel = panel;
     updateControls();
