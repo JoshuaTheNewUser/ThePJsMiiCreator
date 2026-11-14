@@ -1432,6 +1432,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         for (let bone of bones) {
           offsets.set(bone.name, { x: 0, y: 0, z: 0 });
           bone.quaternion.copy(originals.get(bone.name));
+          bone.position.copy(basePositions.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
           bone.updateMatrixWorld(!0);
         }
