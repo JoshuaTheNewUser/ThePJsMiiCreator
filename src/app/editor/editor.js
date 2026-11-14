@@ -1620,7 +1620,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       const title = new Html("span").text(label + ": 0");
       const input = new Html("input").attr({ type: "range", min: String(min), max: String(max), step: "1", value: "0" }).style({ width: "100%" });
       wrap.appendMany(title, input);
-      return { wrap, title, input };
+      return { wrap, title, input, label };
     };
     const ikX = makeIkAxis("Target X", -80, 80), ikY = makeIkAxis("Target Y", -80, 80), ikZ = makeIkAxis("Target Z", -80, 80), ikSwivel = makeIkAxis("Elbow / knee swivel", -180, 180);
     const ikStatus = new Html("div").text("Choose a limb and move its target sliders to solve a two-bone IK pose.").style({ "font-size": "0.78rem", opacity: "0.85", "white-space": "pre-wrap" });
@@ -1638,12 +1638,12 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       } catch (error) { ikStatus.text("IK unavailable: " + String(error?.message || error)); }
     };
     for (const control of [ikX, ikY, ikZ, ikSwivel]) control.input.on("input", () => {
-      control.title.text(control.title.elm.textContent.split(":")[0] + ": " + control.input.getValue());
+      control.title.text(control.label + ": " + control.input.getValue());
       applyIkTarget();
     });
     ikSelect.on("change", () => {
       for (const control of [ikX, ikY, ikZ, ikSwivel]) control.input.val("0");
-      for (const control of [ikX, ikY, ikZ, ikSwivel]) control.title.text(control.title.elm.textContent.split(":")[0] + ": 0");
+      for (const control of [ikX, ikY, ikZ, ikSwivel]) control.title.text(control.label + ": 0");
       applyIkTarget();
     });
     const ikPanel = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "6px", padding: "9px", border: "1px solid var(--stroke)", "border-radius": "9px" });
