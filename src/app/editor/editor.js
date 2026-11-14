@@ -339,6 +339,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openSandboxMode()),
       )),
+      (this.ui.prototypeArchiveButton = addButtonSounds(
+        new Html("button")
+          .text("🗃️ Prototype Archive")
+          .style({
+            position: "absolute",
+            top: "10rem",
+            left: "1rem",
+            "z-index": "4",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openPrototypeArchive()),
+      )),
       (this.ui.modelLabButton = addButtonSounds(
         new Html("button")
           .text("Model Lab")
@@ -397,6 +409,222 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             this.#r(t);
           }));
       }));
+  }
+  openPrototypeArchive() {
+    if (this.ui.prototypeArchivePanel) {
+      this.ui.prototypeArchiveCleanup?.();
+      return;
+    }
+    let scene = this.ui.scene,
+      body = scene?.bodyModels?.get(this.mii.gender),
+      root = body?.model?.scene,
+      originalVisible = root?.visible ?? true,
+      originalTransform = root ? {
+        position: root.position.clone(),
+        rotation: root.rotation.clone(),
+        scale: root.scale.clone(),
+      } : null,
+      wireframes = [],
+      hidden = false,
+      paused = false,
+      speedIndex = 0,
+      timer = null,
+      panel = new Html("div").style({
+        position: "absolute", right: "1rem", top: "8rem",
+        width: "min(390px, calc(100vw - 2rem))",
+        "max-height": "min(72vh, 650px)", "overflow-y": "auto",
+        "box-sizing": "border-box", padding: "14px", display: "flex",
+        "flex-direction": "column", gap: "9px", color: "var(--text)",
+        background: "var(--container)", border: "1px solid var(--stroke)",
+        "border-radius": "12px", "box-shadow": "0 8px 28px #0005", "z-index": "12",
+      }),
+      heading = new Html("div").text("🗃️ Prototype Archive").style({ "font-weight": "800", "font-size": "1.1rem" }),
+      intro = new Html("small").text("20 experimental tools inspired by Mii-game prototypes, unused assets and creator utilities. Historical notes are labeled; the interactive demos here are original recreations."),
+      status = new Html("div").text("Choose a prototype below.").style({
+        padding: "9px", background: "var(--background)", "border-radius": "8px",
+        "font-size": "0.85rem", "white-space": "pre-wrap",
+      }),
+      grid = new Html("div").style({
+        display: "grid", "grid-template-columns": "1fr 1fr", gap: "7px",
+      }),
+      makeButton = (label, callback) => addButtonSounds(
+        new Html("button").text(label).style({ width: "100%", "min-height": "42px", "white-space": "normal" }).on("click", callback),
+      ),
+      say = (title, message) => status.text(title + "\n" + message),
+      close = () => this.ui.prototypeArchiveCleanup?.(),
+      telephoneLines = [
+        "Hey! I found a mysterious object. What do you think it does?",
+        "If you could visit any place in the Mii world, where would you go?",
+        "I heard there's a hidden character somewhere nearby. Any clues?",
+        "What's your favorite memory from the island?",
+      ],
+      adviceOptions = [
+        ["Try a new hobby", "Maybe your Mii should explore a creative hobby today."],
+        ["Take a little break", "A calm moment might be just what your Mii needs."],
+        ["Meet someone new", "Your Mii could start a friendly conversation."],
+        ["Follow a curiosity", "Let your Mii investigate something interesting."],
+      ],
+      setWireframe = (enabled) => {
+        if (!root) return say("Wireframe Preview", "No 3D body model is loaded.");
+        if (enabled) {
+          wireframes = [];
+          root.traverse((object) => {
+            if (!object.isMesh || !object.material) return;
+            for (let material of (Array.isArray(object.material) ? object.material : [object.material])) {
+              if (!material || !("wireframe" in material)) continue;
+              wireframes.push([material, material.wireframe]);
+              material.wireframe = true;
+            }
+          });
+          say("Wireframe Preview", "Wireframe enabled. Press the same button again or close the archive to restore materials.");
+        } else {
+          for (let [material, value] of wireframes) material.wireframe = value;
+          wireframes = [];
+          say("Wireframe Preview", "Original material display restored.");
+        }
+      },
+      rigSummary = () => {
+        let names = [], meshes = 0, materials = 0, hands = [];
+        root?.traverse((object) => {
+          if (object.isBone) {
+            names.push(object.name);
+            if (/hand|finger|thumb|index|middle|ring|pinky/i.test(object.name)) hands.push(object.name);
+          }
+          if (object.isMesh) {
+            meshes++;
+            materials += Array.isArray(object.material) ? object.material.length : (object.material ? 1 : 0);
+          }
+        });
+        return { bones: names.length, meshes, materials, boneNames: names, handBones: hands };
+      },
+      features = [
+        ["☎️ String telephone", () => say("String Telephone Prototype", telephoneLines[Math.floor(Math.random() * telephoneLines.length)] + "\n\nInspired by an early Tomodachi Life interaction prototype. This is an original text demo.")],
+        ["💡 Conversation advice", () => {
+          let option = adviceOptions[Math.floor(Math.random() * adviceOptions.length)];
+          say("Advice Deck · " + option[0], option[1] + "\n\nThe Mii's next action remains up to the player.");
+        }],
+        ["🥷 Ninja hide-and-seek", () => {
+          if (!root) return say("Ninja", "No 3D model is loaded.");
+          hidden = !hidden;
+          root.visible = !hidden;
+          say("Ninja · Hidden Mii", hidden ? "The Mii is hidden! Press this button again to reveal them." : "Found them! The Mii is visible again.");
+        }],
+        ["👏 Find clapping animation", () => {
+          let name = Array.from(body?.actions?.keys?.() || []).find((key) => /clap|applause/i.test(String(key)));
+          if (!name) return say("Unused Animation Search", "No clapping-named animation exists in this loaded model's action list. The archive does not invent one.");
+          scene.swapAnimation(String(name), true, false);
+          say("Clapping Animation", "Playing available animation: " + name);
+        }],
+        ["🎾 Tennis serve note", () => say("Wii Sports · Unused text", "Historical note: research documents an unused tennis serve/net-related message. This entry is an archive note, not a playable tennis mode.")],
+        ["🦴 Full rig inspector", () => {
+          let info = rigSummary();
+          say("Rig Inspector", info.bones + " bones · " + info.meshes + " meshes · " + info.materials + " materials\n\n" + info.boneNames.slice(0, 28).join(", "));
+        }],
+        ["✋ Hand & finger scan", () => {
+          let hands = rigSummary().handBones;
+          say("Hand / Finger Scan", hands.length ? hands.join(", ") : "No hand or finger bones were found in this model.");
+        }],
+        ["🎲 Animation roulette", () => {
+          let names = Array.from(body?.actions?.keys?.() || []);
+          if (!names.length) return say("Animation Roulette", "No animation actions are available on this body model.");
+          let name = names[Math.floor(Math.random() * names.length)];
+          scene.swapAnimation(String(name), true, false);
+          say("Animation Roulette", "Selected: " + name);
+        }],
+        ["⏯️ Pause / resume", () => {
+          let actions = body?.actions;
+          if (!actions?.size) return say("Playback", "No animation actions are available.");
+          paused = !paused;
+          actions.forEach((action) => { action.paused = paused; });
+          say("Playback", paused ? "All loaded animation actions paused." : "Animation actions resumed.");
+        }],
+        ["⏩ Animation speed", () => {
+          let actions = body?.actions;
+          if (!actions?.size) return say("Playback Speed", "No animation actions are available.");
+          let speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+          speedIndex = (speedIndex + 1) % speeds.length;
+          actions.forEach((action) => action.setEffectiveTimeScale(speeds[speedIndex]));
+          say("Playback Speed", "Set available actions to " + speeds[speedIndex] + "×.");
+        }],
+        ["🎯 Recenter camera", () => { scene?.cameraRecenter?.(true); say("Camera", "Camera recentered."); }],
+        ["🔄 Rotate camera", () => { scene?.cameraRotate?.(); say("Camera", "Camera rotation control activated."); }],
+        ["📸 Save 3D screenshot", () => {
+          try {
+            let canvas = scene.getRendererElement(), link = document.createElement("a");
+            link.href = canvas.toDataURL("image/png");
+            link.download = (this.mii.nickname.trim() || "Mii") + "-prototype-archive.png";
+            document.body.appendChild(link); link.click(); link.remove();
+            say("Screenshot", "PNG screenshot export requested.");
+          } catch (error) { say("Screenshot unavailable", String(error?.message || error)); }
+        }],
+        ["🕸️ Toggle wireframe", () => setWireframe(wireframes.length === 0)],
+        ["🎨 Material inventory", () => {
+          let info = rigSummary();
+          say("Material Inventory", info.materials + " material slots across " + info.meshes + " meshes. Custom shader materials are counted but left untouched.");
+        }],
+        ["🎲 Random proportions", () => {
+          let max = this.mii.personality === 24 ? 255 : 127;
+          this.mii.height = Math.floor(Math.random() * (max + 1));
+          this.mii.build = Math.floor(Math.random() * (max + 1));
+          this.render(true, 0, 1);
+          say("Random Proportions", "Generated height " + this.mii.height + " and build " + this.mii.build + ".");
+        }],
+        ["💾 Quick-save profile", () => {
+          try {
+            localStorage.setItem("thepjsmiicreator-prototype-profile-" + this.mii.gender, JSON.stringify({
+              format: "ThePJsMiiCreator.PrototypeProfile", version: 1,
+              height: this.mii.height, build: this.mii.build, gender: this.mii.gender,
+            }));
+            say("Quick Save", "Current height and build saved in this browser.");
+          } catch (error) { say("Quick Save failed", String(error?.message || error)); }
+        }],
+        ["📤 Export profile", () => {
+          let data = { format: "ThePJsMiiCreator.PrototypeProfile", version: 1, gender: this.mii.gender, height: this.mii.height, build: this.mii.build };
+          let url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+          let link = document.createElement("a"); link.href = url;
+          link.download = (this.mii.nickname.trim() || "Mii") + "-prototype-profile.json";
+          document.body.appendChild(link); link.click(); link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          say("Export Profile", "Profile JSON export requested.");
+        }],
+        ["📋 Copy rig summary", () => {
+          let info = rigSummary(), summary = JSON.stringify(info, null, 2);
+          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(summary)
+            .then(() => say("Rig Summary", "Copied " + info.bones + " bones and " + info.meshes + " meshes."))
+            .catch(() => say("Rig Summary", summary));
+          else say("Rig Summary", summary);
+        }],
+        ["🧹 Reset preview stage", () => {
+          if (root && originalTransform) {
+            root.position.copy(originalTransform.position);
+            root.rotation.copy(originalTransform.rotation);
+            root.scale.copy(originalTransform.scale);
+            root.visible = originalVisible;
+            hidden = false;
+            root.updateMatrixWorld(true);
+          }
+          setWireframe(false);
+          say("Preview Stage", "Original model transform, visibility and material wireframe settings restored.");
+        }],
+      ];
+    for (let [label, callback] of features) grid.append(makeButton(label, callback));
+    panel.appendMany(heading, intro, status, grid, makeButton("Close Prototype Archive", close));
+    this.ui.mii.append(panel);
+    this.ui.prototypeArchivePanel = panel;
+    this.ui.prototypeArchiveCleanup = () => {
+      if (timer !== null) clearTimeout(timer);
+      setWireframe(false);
+      if (root && originalTransform) {
+        root.position.copy(originalTransform.position);
+        root.rotation.copy(originalTransform.rotation);
+        root.scale.copy(originalTransform.scale);
+        root.visible = originalVisible;
+        root.updateMatrixWorld(true);
+      }
+      panel.cleanup();
+      this.ui.prototypeArchivePanel = null;
+      this.ui.prototypeArchiveCleanup = null;
+    };
   }
   openSandboxMode() {
     if (this.ui.sandboxPanel) {
