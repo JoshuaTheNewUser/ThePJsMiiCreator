@@ -688,53 +688,48 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
   }
   openModelLab() {
     if (this.ui.modelLabPanel) {
-      this.ui.modelLabPanel.cleanup();
-      this.ui.modelLabPanel = null;
+      this.ui.modelLabCleanup?.();
       return;
     }
     let max = this.mii.personality === 24 ? 255 : 127,
       original = { height: this.mii.height, build: this.mii.build },
+      body = this.ui.scene?.bodyModels?.get(this.mii.gender),
+      root = body?.model?.scene,
+      originalRootScale = root?.scale?.clone(),
+      bones = [],
+      boneScales = new Map(),
+      selectedShape = "classic",
+      intensity = 100,
       panel = new Html("div").style({
-        position: "absolute",
-        left: "1rem",
-        bottom: "4.5rem",
-        width: "min(320px, calc(100vw - 2rem))",
-        "max-height": "min(65vh, 520px)",
-        "overflow-y": "auto",
-        "box-sizing": "border-box",
-        padding: "14px",
-        display: "flex",
-        "flex-direction": "column",
-        gap: "10px",
-        color: "var(--text)",
-        background: "var(--container)",
-        border: "1px solid var(--stroke)",
-        "border-radius": "12px",
-        "box-shadow": "0 8px 28px #0005",
-        "z-index": "7",
+        position: "absolute", left: "1rem", bottom: "4.5rem",
+        width: "min(350px, calc(100vw - 2rem))",
+        "max-height": "min(72vh, 620px)", "overflow-y": "auto",
+        "box-sizing": "border-box", padding: "14px", display: "flex",
+        "flex-direction": "column", gap: "10px", color: "var(--text)",
+        background: "var(--container)", border: "1px solid var(--stroke)",
+        "border-radius": "12px", "box-shadow": "0 8px 28px #0005", "z-index": "7",
       }),
-      heading = new Html("div").text("🧪 Model Lab").style({
-        "font-weight": "700",
-        "font-size": "1.05rem",
+      heading = new Html("div").text("🧪 Model Lab + Body Studio").style({
+        "font-weight": "700", "font-size": "1.05rem",
       }),
-      help = new Html("small").text("Adjust the Mii's body proportions. Changes preview in the 3D viewer."),
+      help = new Html("small").text("Ten new tools, including procedural 3D body-model presets. These are reversible previews using the currently loaded rig; separate model files can be added when compatible GLB assets are available."),
+      makeButton = (label, callback) => addButtonSounds(
+        new Html("button").text(label).style({ width: "100%" }).on("click", callback),
+      ),
+      section = (label) => new Html("div").text(label).style({
+        "font-weight": "700", "padding-top": "5px", "border-bottom": "1px solid var(--stroke)",
+      }),
       makeControl = (label, property, value) => {
         let wrapper = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "5px" }),
           caption = new Html("label").text(label + ": " + value),
-          input = new Html("input").attr({
-            type: "range",
-            min: "0",
-            max: String(max),
-            step: "1",
-            value: String(value),
-          }).style({ width: "100%" });
+          input = new Html("input").attr({ type: "range", min: "0", max: String(max), step: "1", value: String(value) }).style({ width: "100%" });
         input.on("input", () => {
           this.mii[property] = Number(input.getValue());
           caption.text(label + ": " + this.mii[property] + "/" + max);
         });
         input.on("change", () => this.render(!0, 0, 1));
         wrapper.appendMany(caption, input);
-        return { wrapper, input, caption, property };
+        return { wrapper, input, caption };
       },
       heightControl = makeControl("Height", "height", this.mii.height),
       buildControl = makeControl("Build", "build", this.mii.build),
@@ -750,80 +745,155 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         this.mii.build = Math.max(0, Math.min(max, build));
         refresh();
       },
-      presetGrid = new Html("div").style({
-        display: "grid",
-        "grid-template-columns": "1fr 1fr",
-        gap: "7px",
+      shapeSelect = new Html("select").style({
+        width: "100%", padding: "8px", "border-radius": "8px",
+        background: "var(--background)", color: "var(--text)",
       }),
-      makeButton = (label, callback) =>
-        addButtonSounds(new Html("button").text(label).style({ width: "100%" }).on("click", callback));
-    for (let [label, height, build] of [
-      ["Balanced", 64, 64],
-      ["Short", 28, 55],
-      ["Tall", 105, 55],
-      ["Compact", 55, 100],
-      ["Slim build", 64, 25],
-      ["Broad build", 64, 110],
-    ]) {
-      presetGrid.append(makeButton(label, () => setPreset(height, build)));
-    }
-    let actions = new Html("div").style({
-      display: "grid",
-      "grid-template-columns": "1fr 1fr",
-      gap: "7px",
-    });
-    actions.appendMany(
-      makeButton("Reset", () => setPreset(original.height, original.build)),
-      makeButton("Randomize", () => setPreset(
-        Math.floor(Math.random() * (max + 1)),
-        Math.floor(Math.random() * (max + 1)),
-      )),
-      makeButton("Save preset", () => {
-        try {
-          localStorage.setItem("thepjsmiicreator-model-" + this.mii.gender,
-            JSON.stringify({ height: this.mii.height, build: this.mii.build }));
-          Notify.show("Model Lab", "Model preset saved in this browser.");
-        } catch (error) {
-          Notify.show("Save failed", String(error?.message || error));
-        }
+      shapeLabel = new Html("label").text("Shape intensity: 100%"),
+      shapeInput = new Html("input").attr({ type: "range", min: "0", max: "150", step: "1", value: "100" }).style({ width: "100%" }),
+      shapeHelp = new Html("small").text("Shape changes are applied to torso/hip bones where available. Unsupported rigs keep their original proportions."),
+      slotSelect = new Html("select").style({
+        width: "100%", padding: "8px", "border-radius": "8px",
+        background: "var(--background)", color: "var(--text)",
       }),
-      makeButton("Load preset", () => {
-        try {
-          let saved = JSON.parse(localStorage.getItem("thepjsmiicreator-model-" + this.mii.gender) || "null");
-          if (!saved || !Number.isFinite(Number(saved.height)) || !Number.isFinite(Number(saved.build))) {
-            Notify.show("Model Lab", "No valid model preset was found in this browser.");
-            return;
+      profileFile = new Html("input").attr({ type: "file", accept: ".json,application/json" }).style({ display: "none" }),
+      rigInfo = new Html("small").text("Rig inspector: scanning...").style({ "white-space": "pre-wrap" }),
+      shapePresets = [
+        ["classic", "Classic body", 1, 1, 1],
+        ["sphere", "Round sphere", 1.48, 1.32, 1.48],
+        ["capsule", "Tall capsule", 1.12, 1.55, 1.12],
+        ["pear", "Pear silhouette", 1.24, 1.08, 1.24],
+        ["chibi", "Chibi proportions", 1.3, 1.24, 1.3],
+        ["slim", "Streamlined", 0.86, 1.02, 0.86],
+        ["broad", "Broad torso", 1.38, 1.05, 1.18],
+      ],
+      shapeBones = [],
+      setShape = (id, amount = intensity) => {
+        selectedShape = id;
+        intensity = amount;
+        let preset = shapePresets.find((item) => item[0] === id) || shapePresets[0],
+          blend = Math.max(0, Math.min(1.5, amount / 100));
+        for (let item of shapeBones) {
+          let bone = item.bone, base = item.base;
+          let factorX = preset[2], factorY = preset[3], factorZ = preset[4];
+          if (id === "pear" && /hip|pelvis|leg|thigh/i.test(bone.name)) {
+            factorX *= 1.22; factorZ *= 1.22;
           }
-          setPreset(Number(saved.height), Number(saved.build));
-        } catch (error) {
-          Notify.show("Load failed", String(error?.message || error));
+          if (id === "pear" && /chest|upper|shoulder/i.test(bone.name)) {
+            factorX *= 0.9; factorZ *= 0.9;
+          }
+          bone.scale.set(
+            base.x * (1 + (factorX - 1) * blend),
+            base.y * (1 + (factorY - 1) * blend),
+            base.z * (1 + (factorZ - 1) * blend),
+          );
         }
+        if (root) root.updateMatrixWorld(!0);
+        shapeSelect.val(id);
+        shapeInput.val(String(amount));
+        shapeLabel.text("Shape intensity: " + amount + "%");
+      },
+      captureProfile = () => ({
+        format: "ThePJsMiiCreator.BodyStudio",
+        version: 1,
+        gender: this.mii.gender,
+        height: this.mii.height,
+        build: this.mii.build,
+        bodyShape: selectedShape,
+        intensity,
       }),
-      makeButton("Export model JSON", () => {
-        let blob = new Blob([JSON.stringify({
-          format: "ThePJsMiiCreator.ModelPreset",
-          version: 1,
-          gender: this.mii.gender,
-          height: this.mii.height,
-          build: this.mii.build,
-        }, null, 2)], { type: "application/json" }),
-          url = URL.createObjectURL(blob),
-          link = document.createElement("a");
+      exportProfile = () => {
+        let blob = new Blob([JSON.stringify(captureProfile(), null, 2)], { type: "application/json" }),
+          url = URL.createObjectURL(blob), link = document.createElement("a");
         link.href = url;
-        link.download = (this.mii.nickname.trim() || "Mii") + "-model-preset.json";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        link.download = (this.mii.nickname.trim() || "Mii") + "-body-studio.json";
+        document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      applyProfile = (profile) => {
+        if (profile?.format !== "ThePJsMiiCreator.BodyStudio" || !Number.isFinite(Number(profile.height)) ||
+            !Number.isFinite(Number(profile.build)) || !shapePresets.some((item) => item[0] === profile.bodyShape))
+          throw new Error("This is not a supported Body Studio profile.");
+        setPreset(Number(profile.height), Number(profile.build));
+        setShape(profile.bodyShape, Math.max(0, Math.min(150, Number(profile.intensity) || 0)));
+      },
+      actions = new Html("div").style({ display: "grid", "grid-template-columns": "1fr 1fr", gap: "7px" });
+    if (root) {
+      root.traverse((object) => {
+        if (object.isBone) {
+          bones.push(object);
+          if (/spine|torso|chest|abdomen|waist|hip|pelvis/i.test(object.name)) {
+            let base = object.scale.clone();
+            boneScales.set(object.name, base);
+            shapeBones.push({ bone: object, base });
+          }
+        }
+      });
+    }
+    for (let [id, label] of shapePresets)
+      new Html("option").attr({ value: id }).text(label).appendTo(shapeSelect);
+    for (let slot of ["1", "2", "3"])
+      new Html("option").attr({ value: slot }).text("Preset slot " + slot).appendTo(slotSelect);
+    shapeSelect.on("change", () => setShape(shapeSelect.getValue()));
+    shapeInput.on("input", () => setShape(selectedShape, Number(shapeInput.getValue())));
+    profileFile.on("change", async () => {
+      let file = profileFile.elm.files?.[0];
+      if (!file) return;
+      try { applyProfile(JSON.parse(await file.text())); Notify.show("Body Studio", "Profile imported."); }
+      catch (error) { Notify.show("Import failed", String(error?.message || error)); }
+      profileFile.elm.value = "";
+    });
+    rigInfo.text("Rig inspector: " + bones.length + " bones found\n" +
+      (shapeBones.length ? shapeBones.map((item) => item.bone.name).slice(0, 12).join(", ") : "No recognized torso bones; body shape presets may have limited effect."));
+    actions.appendMany(
+      makeButton("Reset proportions", () => setPreset(original.height, original.build)),
+      makeButton("Random proportions", () => setPreset(Math.floor(Math.random() * (max + 1)), Math.floor(Math.random() * (max + 1)))),
+      makeButton("Random body shape", () => {
+        let pick = shapePresets[Math.floor(Math.random() * shapePresets.length)];
+        setShape(pick[0], 65 + Math.floor(Math.random() * 86));
       }),
-      makeButton("Close", () => {
-        panel.cleanup();
-        this.ui.modelLabPanel = null;
+      makeButton("Reset body shape", () => setShape("classic", 100)),
+      makeButton("Save selected slot", () => {
+        try { localStorage.setItem("thepjsmiicreator-body-studio-" + this.mii.gender + "-" + slotSelect.getValue(), JSON.stringify(captureProfile())); Notify.show("Body Studio", "Saved to preset slot " + slotSelect.getValue() + "."); }
+        catch (error) { Notify.show("Save failed", String(error?.message || error)); }
       }),
+      makeButton("Load selected slot", () => {
+        try { let saved = localStorage.getItem("thepjsmiicreator-body-studio-" + this.mii.gender + "-" + slotSelect.getValue()); if (!saved) throw new Error("That preset slot is empty."); applyProfile(JSON.parse(saved)); }
+        catch (error) { Notify.show("Load failed", String(error?.message || error)); }
+      }),
+      makeButton("Export body profile", exportProfile),
+      makeButton("Import body profile", () => profileFile.elm.click()),
+      makeButton("Save 3D screenshot", () => {
+        try {
+          let canvas = this.ui.scene.getRendererElement(), link = document.createElement("a");
+          link.href = canvas.toDataURL("image/png");
+          link.download = (this.mii.nickname.trim() || "Mii") + "-body-studio.png";
+          document.body.appendChild(link); link.click(); link.remove();
+        } catch (error) { Notify.show("Screenshot failed", String(error?.message || error)); }
+      }),
+      makeButton("Copy rig summary", () => {
+        let summary = "ThePJsMiiCreator Body Studio\nBones: " + bones.length + "\nShape bones: " + shapeBones.map((item) => item.bone.name).join(", ");
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(summary).then(() => Notify.show("Body Studio", "Rig summary copied.")).catch(() => Notify.show("Clipboard unavailable", summary));
+        else Notify.show("Rig summary", summary);
+      }),
+      makeButton("Close", () => this.ui.modelLabCleanup?.()),
     );
-    panel.appendMany(heading, help, heightControl.wrapper, buildControl.wrapper, presetGrid, actions);
+    panel.appendMany(
+      heading, help, section("1 · Proportions"), heightControl.wrapper, buildControl.wrapper,
+      section("2 · Procedural 3D body models"), shapeSelect, shapeLabel, shapeInput, shapeHelp,
+      section("3 · Six extra tools"), slotSelect, actions, section("Rig inspector"), rigInfo, profileFile,
+    );
     this.ui.mii.append(panel);
     this.ui.modelLabPanel = panel;
+    this.ui.modelLabCleanup = () => {
+      if (root && originalRootScale) root.scale.copy(originalRootScale);
+      for (let item of shapeBones) item.bone.scale.copy(item.base);
+      root?.updateMatrixWorld(!0);
+      panel.cleanup();
+      this.ui.modelLabPanel = null;
+      this.ui.modelLabCleanup = null;
+    };
+    setShape("classic", 100);
   }
   openAnimationStudio() {
     if (this.ui.animationStudioPanel) {
