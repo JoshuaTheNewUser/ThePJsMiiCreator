@@ -466,6 +466,10 @@
       "description": "Native MIAN v2 animation file reader and curve evaluator."
     },
     {
+      "file": "app/mii/ik-solver.js",
+      "description": "MiiPy-inspired two-bone inverse-kinematics solver for the body rig."
+    },
+    {
       "file": "app/editor/editor.js",
       "description": "MiiEditor: the editor screen."
     },
