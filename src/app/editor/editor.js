@@ -1575,6 +1575,104 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         link.href = url; link.download = (this.mii.nickname.trim() || "Mii") + "-motion-clip.json";
         document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
       };
+
+    let importedAnimation = null, importedAnimationRaf = 0, importedAnimationStart = 0;
+    const basePositions = new Map(bones.map((bone) => [bone.name, bone.position.clone()]));
+    const boneAliases = [
+      ["skl_root", ["sklroot","root","bodyroot"]], ["hip", ["hip","hips","pelvis"]],
+      ["chest", ["chest","spine","torso"]], ["head", ["head","neckhead"]],
+      ["arm_l1", ["arml1","leftupperarm","upperarml","upperarmleft","lupperarm"]],
+      ["arm_l2", ["arml2","leftforearm","forearml","forearmleft","lowerarml"]],
+      ["wrist_l", ["wristl","lefthand","handl","handleft"]],
+      ["arm_r1", ["armr1","rightupperarm","upperarmr","upperarmright","rupperarm"]],
+      ["arm_r2", ["armr2","rightforearm","forearmr","forearmright","lowerarmr"]],
+      ["wrist_r", ["wristr","righthand","handr","handright"]],
+      ["foot_l1", ["footl1","leftthigh","thighl","upperlegl","leftupperleg"]],
+      ["foot_l2", ["footl2","leftshin","shinl","lowerlegl","leftlowerleg"]],
+      ["ankle_l", ["anklel","leftfoot","footl","leftankle"]],
+      ["foot_r1", ["footr1","rightthigh","thighr","upperlegr","rightupperleg"]],
+      ["foot_r2", ["footr2","rightshin","shinr","lowerlegr","rightlowerleg"]],
+      ["ankle_r", ["ankler","rightfoot","footr","rightankle"]]
+    ];
+    const normalizeBoneName = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const findClipBone = (index) => {
+      const names = boneAliases[index]?.[1] || [];
+      return bones.find((bone) => names.includes(normalizeBoneName(bone.name)))?.name || null;
+    };
+    const stopImportedClip = (restore = false) => {
+      if (importedAnimationRaf) cancelAnimationFrame(importedAnimationRaf);
+      importedAnimationRaf = 0;
+      if (restore) {
+        for (let bone of bones) {
+          offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+          bone.quaternion.copy(originals.get(bone.name));
+          bone.position.copy(basePositions.get(bone.name));
+          bone.scale.copy(originalScales.get(bone.name));
+          bone.updateMatrixWorld(!0);
+        }
+        updateControls();
+      }
+    };
+    const applyImportedAnimationFrame = (frame) => {
+      const values = new Map();
+      for (let bone of bones) {
+        offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+        bone.position.copy(basePositions.get(bone.name));
+        bone.scale.copy(originalScales.get(bone.name));
+      }
+      for (let track of importedAnimation.tracks) {
+        if (track.target !== "bone" || track.index >= 16 || !track.keys.length) continue;
+        const boneName = findClipBone(track.index);
+        if (!boneName) continue;
+        const value = window.PJMiiAnimationFormat.evaluateCurve(track.keys, frame);
+        const item = values.get(boneName) || { rotation: { x: 0, y: 0, z: 0 }, position: {}, scale: {} };
+        if (track.channel >= 3 && track.channel <= 5) item.rotation[["x","y","z"][track.channel - 3]] = value;
+        else if (track.channel >= 0 && track.channel <= 2) item.position[["x","y","z"][track.channel]] = value;
+        else if (track.channel >= 6 && track.channel <= 8) item.scale[["x","y","z"][track.channel - 6]] = value;
+        values.set(boneName, item);
+      }
+      for (let [boneName, item] of values) {
+        offsets.set(boneName, item.rotation);
+        const bone = bones.find((candidate) => candidate.name === boneName);
+        if (!bone) continue;
+        const basePosition = basePositions.get(boneName), baseScale = originalScales.get(boneName);
+        bone.position.set(basePosition.x + (item.position.x || 0), basePosition.y + (item.position.y || 0), basePosition.z + (item.position.z || 0));
+        bone.scale.set(baseScale.x * (item.scale.x ?? 1), baseScale.y * (item.scale.y ?? 1), baseScale.z * (item.scale.z ?? 1));
+        applyBone(boneName);
+      }
+      updateControls();
+      root.updateMatrixWorld(!0);
+    };
+    const playImportedClip = () => {
+      if (!importedAnimation) return Notify.show("MiiAnimator Clip", "Import a .miianim file first.");
+      stopImportedClip(false);
+      importedAnimationStart = performance.now();
+      const tick = (now) => {
+        if (!importedAnimation) return;
+        const frame = ((now - importedAnimationStart) / 1000 * Math.max(1, importedAnimation.fps)) % Math.max(1, importedAnimation.length);
+        applyImportedAnimationFrame(frame);
+        importedAnimationRaf = requestAnimationFrame(tick);
+      };
+      importedAnimationRaf = requestAnimationFrame(tick);
+      animationStatus.text("▶ Playing " + importedAnimation.name + " · " + importedAnimation.fps + " FPS");
+    };
+    const miianimInput = new Html("input").attr({ type: "file", accept: ".miianim,application/octet-stream" }).style({ display: "none" });
+    const animationStatus = new Html("div").text("No .miianim clip loaded.").style({ "font-size": "0.8rem", opacity: "0.85", "white-space": "pre-wrap" });
+    miianimInput.on("change", async () => {
+      const file = miianimInput.elm.files?.[0]; miianimInput.elm.value = "";
+      if (!file) return;
+      try {
+        stopImportedClip(true);
+        importedAnimation = window.PJMiiAnimationFormat.parse(await file.arrayBuffer());
+        const matched = new Set(importedAnimation.tracks.filter((track) => track.target === "bone").map((track) => findClipBone(track.index)).filter(Boolean));
+        animationStatus.text("✓ " + importedAnimation.name + "\\n" + importedAnimation.tracks.length + " tracks · " + importedAnimation.length + " frames · " + importedAnimation.fps + " FPS\\n" + matched.size + "/16 rig bones matched. IK, facial-expression and particle tracks are not applied in this preview.");
+        Notify.show("MiiAnimator Clip", "Animation imported. Press Play imported clip to preview.");
+      } catch (error) {
+        importedAnimation = null; animationStatus.text("Import failed: " + String(error?.message || error));
+        Notify.show("MiiAnimator Clip", String(error?.message || error));
+      }
+    });
+
     squashInput.on("input", () => {
       let amount = Number(squashInput.getValue()) / 100;
       root.scale.set(rootScale.x / Math.sqrt(amount), rootScale.y * amount, rootScale.z / Math.sqrt(amount));
@@ -1609,8 +1707,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       makeButton("🪞 Mirror pose", mirrorPose),
       makeButton("➕ Add keyframe", addKeyframe),
       makeButton("📤 Export motion clip", exportMotionClip),
+      makeButton("🎞 Import .miianim", () => miianimInput.elm.click()),
+      makeButton("▶ Play imported clip", playImportedClip),
+      makeButton("■ Stop imported clip", () => { stopImportedClip(false); animationStatus.text(importedAnimation ? "Clip loaded: " + importedAnimation.name : "No .miianim clip loaded."); }),
       makeButton("🧹 Clear timeline", () => { keyframes = []; updateTimeline(); timelineInput.val("0"); }),
       makeButton(translate("Close"), () => {
+        stopImportedClip(false);
+        importedAnimation = null;
         for (let bone of bones) {
           bone.quaternion.copy(originals.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
@@ -1623,7 +1726,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, squashLabel, squashInput, timelineLabel, timelineInput);
+    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, miianimInput, animationStatus, squashLabel, squashInput, timelineLabel, timelineInput);
     if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
     panel.append(buttons);
     this.ui.mii.append(panel);
