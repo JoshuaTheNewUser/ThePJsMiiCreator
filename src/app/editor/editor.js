@@ -532,8 +532,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
   }
   openSandboxCutscene() {
     if (this.ui.sandboxCutscenePanel) {
-      this.ui.sandboxCutscenePanel.cleanup();
-      this.ui.sandboxCutscenePanel = null;
+      this.ui.sandboxCutsceneCleanup?.();
       return;
     }
     let body = this.ui.scene?.bodyModels?.get(this.mii.gender),
@@ -543,45 +542,48 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       return;
     }
     let originalScale = root.scale.clone(),
+      originalRotation = root.rotation.clone(),
       originals = [],
       timer = null,
       closed = false,
-      started = false,
       panel = new Html("div").style({
         position: "absolute",
-        inset: "12% 8%",
-        "min-height": "260px",
-        padding: "clamp(16px, 4vw, 30px)",
+        left: "50%",
+        bottom: "1rem",
+        transform: "translateX(-50%)",
+        width: "min(680px, calc(100% - 2rem))",
+        padding: "12px 16px",
         display: "flex",
         "flex-direction": "column",
-        "justify-content": "space-between",
-        gap: "18px",
+        gap: "8px",
         "box-sizing": "border-box",
         color: "#fff",
-        background: "linear-gradient(145deg, #101a2cF2, #243d65F2)",
-        border: "2px solid #8fc7ff",
-        "border-radius": "18px",
-        "box-shadow": "0 12px 48px #000a",
+        background: "linear-gradient(145deg, #101a2ce8, #243d65e8)",
+        border: "1px solid #8fc7ff",
+        "border-radius": "14px",
+        "box-shadow": "0 8px 32px #0009",
         "z-index": "20",
         "text-align": "center",
+        "backdrop-filter": "blur(8px)",
       }),
-      eyebrow = new Html("div").text("THE PJ'S MII CREATOR • SANDBOX CINEMA").style({
-        "font-size": "0.72rem", "letter-spacing": "0.12em", opacity: "0.8",
+      eyebrow = new Html("div").text("🫐 TCM GUM • 3D CUTSCENE").style({
+        "font-size": "0.7rem", "letter-spacing": "0.12em", opacity: "0.8",
       }),
       title = new Html("div").text("The TCM Gum Experiment").style({
-        "font-size": "clamp(1.35rem, 4vw, 2rem)", "font-weight": "800",
+        "font-size": "1.2rem", "font-weight": "800",
       }),
       sceneText = new Html("div").text("A curious Mii discovers a mysterious piece of TCM Gum...").style({
-        "font-size": "clamp(1rem, 2.5vw, 1.25rem)", "line-height": "1.5",
+        "font-size": "0.95rem", "line-height": "1.4",
       }),
-      progress = new Html("div").text("Scene 1 / 5").style({ opacity: "0.75", "font-size": "0.85rem" }),
+      progress = new Html("div").text("Scene 1 / 5").style({ opacity: "0.75", "font-size": "0.8rem" }),
       makeButton = (label, callback) => addButtonSounds(
-        new Html("button").text(label).style({ padding: "10px 14px" }).on("click", callback),
+        new Html("button").text(label).style({ padding: "9px 13px" }).on("click", callback),
       ),
       restore = () => {
         if (timer !== null) clearInterval(timer);
         timer = null;
         root.scale.copy(originalScale);
+        root.rotation.copy(originalRotation);
         for (let [mesh, material] of originals) mesh.material = material;
         root.updateMatrixWorld(!0);
       },
@@ -601,53 +603,56 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             if (copy.color) copy.color.lerp(new THREE.Color("#397bd1"), 0.58);
             return copy;
           };
-          let tinted = Array.isArray(original)
-            ? original.map(tint)
-            : tint(original);
+          let tinted = Array.isArray(original) ? original.map(tint) : tint(original);
           if (tinted !== original && (!Array.isArray(original) || tinted.some((m, i) => m !== original[i]))) {
             originals.push([object, original]);
             object.material = tinted;
           }
         });
       },
+      applySphereInflation = (amount) => {
+        applyTint();
+        // The body model itself expands in all three dimensions, becoming a
+        // rounded blueberry-like sphere rather than merely growing taller.
+        let sphere = 1 + amount * 1.18;
+        root.scale.set(
+          originalScale.x * sphere,
+          originalScale.y * (1 + amount * 1.02),
+          originalScale.z * sphere,
+        );
+        root.rotation.y = originalRotation.y + amount * 0.12;
+        root.updateMatrixWorld(!0);
+      },
+      scenes = [
+        ["Scene 1 / 5", "A curious Mii discovers a mysterious piece of TCM Gum...", 0],
+        ["Scene 2 / 5", "One tiny taste later... something unusual begins.", 0],
+        ["Scene 3 / 5", "A blue glow! The 3D transformation starts with a gentle cartoon puff.", 0.25],
+        ["Scene 4 / 5", "The body rounds outward in every direction, becoming a big blueberry-like sphere!", 1],
+        ["Scene 5 / 5", "Ta-da! Full blueberry sphere mode. The experiment is complete!", 1],
+      ],
       finish = () => {
         if (timer !== null) clearInterval(timer);
         timer = null;
+        applySphereInflation(1);
         progress.text("Cutscene complete");
-        sceneText.text("Blueberry mode achieved! The experiment is over... for now. You can replay the scene or close the cinema.");
+        sceneText.text("Blueberry sphere mode achieved! Replay the 3D transformation or close the cutscene.");
         replayButton.style({ display: "inline-block" });
         skipButton.style({ display: "none" });
-        started = false;
       },
       play = () => {
         restore();
         originals = [];
-        started = true;
         replayButton.style({ display: "none" });
         skipButton.style({ display: "inline-block" });
         title.text("The TCM Gum Experiment");
-        let scenes = [
-          ["Scene 1 / 5", "A curious Mii finds a strange piece of TCM Gum. The label says: “Experimental flavour. Probably fine.”", 0],
-          ["Scene 2 / 5", "One tiny taste later... the Mii pauses. Something feels a little unusual.", 0],
-          ["Scene 3 / 5", "A soft blue glow appears. The transformation begins in a harmless, cartoony puff!", 0.35],
-          ["Scene 4 / 5", "Rounder, bluer, and VERY surprised. The blueberry effect reaches its maximum!", 1],
-          ["Scene 5 / 5", "Ta-da! A blueberry-themed Mii. Maybe read the label next time?", 1],
-        ];
         let index = 0, tick = 0;
         sceneText.text(scenes[0][1]);
         progress.text(scenes[0][0]);
         timer = setInterval(() => {
           tick++;
           if (index >= 2) {
-            applyTint();
-            let progressAmount = Math.min(1, (index - 2 + tick / 50) / 2);
-            let sphereFactor = 1 + progressAmount * 1.05;
-            root.scale.set(
-              originalScale.x * sphereFactor,
-              originalScale.y * (1 + (sphereFactor - 1) * 0.88),
-              originalScale.z * sphereFactor,
-            );
-            root.updateMatrixWorld(!0);
+            let amount = Math.min(1, (index - 2 + tick / 50) / 2);
+            applySphereInflation(amount);
           }
           if (tick >= 50) {
             tick = 0;
@@ -661,17 +666,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           }
         }, 60);
       },
-      replayButton = makeButton("↻ Replay", play),
-      skipButton = makeButton("Skip to ending", finish),
+      replayButton = makeButton("↻ Replay 3D scene", play),
+      skipButton = makeButton("Skip to sphere ending", finish),
       closeButton = makeButton("Close cutscene", () => this.ui.sandboxCutsceneCleanup?.()),
       buttons = new Html("div").style({
-        display: "flex", "flex-wrap": "wrap", "justify-content": "center", gap: "10px",
+        display: "flex", "flex-wrap": "wrap", "justify-content": "center", gap: "8px",
       });
     buttons.appendMany(replayButton, skipButton, closeButton);
     panel.appendMany(eyebrow, title, sceneText, progress, buttons);
     this.ui.mii.append(panel);
     this.ui.sandboxCutscenePanel = panel;
     this.ui.sandboxCutsceneCleanup = () => {
+      if (closed) return;
       closed = true;
       restore();
       panel.cleanup();
