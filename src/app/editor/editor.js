@@ -327,6 +327,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openCustomPoseMaker()),
       )),
+      (this.ui.expressionCreatorButton = addButtonSounds(new Html("button").text("🎭 Expression Creator").style({ position:"absolute", top:"1rem", right:"19rem", "z-index":"4" }).appendTo(this.ui.mii).on("click", () => this.openExpressionCreator()))),
       (this.ui.sandboxButton = addButtonSounds(
         new Html("button")
           .text("🧪 Sandbox Mode")
@@ -1299,13 +1300,14 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     }
     let actions = body.actions;
     if (actions) actions.forEach((action) => (action.paused = true));
-    let originals = new Map(),
-      originalScales = new Map(),
-      offsets = new Map();
+    let originals = new Map(), originalScales = new Map(), offsets = new Map(),
+      translations = new Map(), boneScales = new Map();
     for (let bone of bones) {
       originals.set(bone.name, bone.quaternion.clone());
       originalScales.set(bone.name, bone.scale.clone());
       offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+      translations.set(bone.name, { x: 0, y: 0, z: 0 });
+      boneScales.set(bone.name, { x: 1, y: 1, z: 1 });
     }
     // Prefer a dedicated abdomen/waist bone; use the lower spine only as a fallback.
     let bellyBone =
@@ -1378,6 +1380,20 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       axisX = makeAxisControl("x"),
       axisY = makeAxisControl("y"),
       axisZ = makeAxisControl("z"),
+      makeTransformControl = (kind, axis, min, max, step, initial) => {
+        const wrap = new Html("label").style({ display: "flex", "flex-direction": "column", gap: "3px", "font-size": "0.8rem" });
+        const value = new Html("span").text(kind + " " + axis.toUpperCase() + ": " + initial);
+        const input = new Html("input").attr({ type: "range", min: String(min), max: String(max), step: String(step), value: String(initial) }).style({ width: "100%" });
+        wrap.appendMany(value, input);
+        input.on("input", () => {
+          const name = boneSelect.getValue(), values = kind === "Move" ? translations.get(name) : boneScales.get(name);
+          if (!values) return;
+          values[axis] = Number(input.getValue()); value.text(kind + " " + axis.toUpperCase() + ": " + Number(input.getValue()).toFixed(2)); applyBone(name);
+        });
+        return { wrap, input, value, kind, axis };
+      },
+      moveX = makeTransformControl("Move", "x", -2, 2, 0.01, 0), moveY = makeTransformControl("Move", "y", -2, 2, 0.01, 0), moveZ = makeTransformControl("Move", "z", -2, 2, 0.01, 0),
+      scaleX = makeTransformControl("Scale", "x", 0.25, 3, 0.01, 1), scaleY = makeTransformControl("Scale", "y", 0.25, 3, 0.01, 1), scaleZ = makeTransformControl("Scale", "z", 0.25, 3, 0.01, 1),
       bellyLabel = new Html("label").style({
         display: "flex",
         "justify-content": "space-between",
@@ -1414,17 +1430,26 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           ),
         );
         bone.quaternion.copy(base).multiply(delta);
+        const move = translations.get(name) || { x: 0, y: 0, z: 0 }, size = boneScales.get(name) || { x: 1, y: 1, z: 1 };
+        const position = basePositions.get(name), scale = originalScales.get(name);
+        if (position) bone.position.set(position.x + move.x, position.y + move.y, position.z + move.z);
+        if (scale) bone.scale.set(scale.x * size.x, scale.y * size.y, scale.z * size.z);
         bone.updateMatrixWorld(!0);
       },
       updateControls = () => {
         let offset = offsets.get(boneSelect.getValue()) || { x: 0, y: 0, z: 0 };
         for (let [control, axis] of [[axisX, "x"], [axisY, "y"], [axisZ, "z"]]) {
-          control.input.val(String(offset[axis]));
-          control.value.text(offset[axis] + "°");
+          control.input.val(String(offset[axis])); control.value.text(offset[axis] + "°");
+        }
+        const move = translations.get(boneSelect.getValue()) || { x: 0, y: 0, z: 0 }, scale = boneScales.get(boneSelect.getValue()) || { x: 1, y: 1, z: 1 };
+        for (const control of [moveX, moveY, moveZ, scaleX, scaleY, scaleZ]) {
+          const amount = control.kind === "Move" ? move[control.axis] : scale[control.axis];
+          control.input.val(String(amount)); control.value.text(control.kind + " " + control.axis.toUpperCase() + ": " + Number(amount).toFixed(2));
         }
       },
       resetCurrent = () => {
         offsets.set(boneSelect.getValue(), { x: 0, y: 0, z: 0 });
+        translations.set(boneSelect.getValue(), { x: 0, y: 0, z: 0 }); boneScales.set(boneSelect.getValue(), { x: 1, y: 1, z: 1 });
         applyBone(boneSelect.getValue());
         updateControls();
       },
@@ -1780,7 +1805,10 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, miianimInput, animationStatus, ikPanel, squashLabel, squashInput, timelineLabel, timelineInput);
+    const transformControls = new Html("div").style({ display: "grid", "grid-template-columns": "1fr 1fr", gap: "7px", padding: "8px", border: "1px solid var(--stroke)", "border-radius": "8px" });
+    transformControls.append(new Html("div").text("↔ Move bone (local units)").style({ "font-weight": "700", "grid-column": "1 / -1" }), moveX.wrap, moveY.wrap, moveZ.wrap,
+      new Html("div").text("⤢ Resize bone").style({ "font-weight": "700", "grid-column": "1 / -1" }), scaleX.wrap, scaleY.wrap, scaleZ.wrap);
+    panel.appendMany(heading, help, boneSelect, axisControls, transformControls, fileInput, miianimInput, animationStatus, ikPanel, squashLabel, squashInput, timelineLabel, timelineInput);
     if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
     panel.append(buttons);
     this.ui.mii.append(panel);
@@ -1798,6 +1826,31 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       this.ui.secretVaultButton.text("🔓 Secret Vault (" + this.secretUnlocks.size + ")");
     }
     Notify.show("✨ " + title, message);
+  }
+  openExpressionCreator() {
+    if (this.ui.expressionCreatorPanel) { this.ui.expressionCreatorPanel.cleanup(); this.ui.expressionCreatorPanel = null; this.ui.scene?.setExpression(0); return; }
+    const scene = this.ui.scene, panel = new Html("div").style({ position:"absolute", top:"4.5rem", right:"1rem", width:"min(330px, calc(100vw - 2rem))", "max-height":"70vh", overflow:"auto", padding:"14px", display:"flex", "flex-direction":"column", gap:"9px", color:"var(--text)", background:"var(--container)", border:"1px solid var(--stroke)", "border-radius":"12px", "z-index":"7" });
+    const title = new Html("div").text("🎭 Custom Expression Creator").style({ "font-weight":"700" });
+    const note = new Html("div").text("Preview built-in FFL face expressions, name your favourites, and save/export your own expression preset collection.").style({ "font-size":"0.82rem", opacity:"0.85" });
+    const expression = new Html("select").style({ width:"100%", padding:"8px", background:"var(--background)", color:"var(--text)" });
+    for (let id=0; id<=10; id++) new Html("option").attr({value:String(id)}).text("FFL expression "+id).appendTo(expression);
+    const name = new Html("input").attr({type:"text", maxlength:"32", placeholder:"Name this expression…"}).style({width:"100%", padding:"8px", "box-sizing":"border-box"});
+    const saved = new Html("select").style({width:"100%", padding:"8px", background:"var(--background)", color:"var(--text)"});
+    const status = new Html("div").text("Choose an expression to preview it.").style({"font-size":"0.8rem"});
+    const key="thepjsmiicreator-expression-presets-v1";
+    const read=()=>{try{const v=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(v)?v.filter(x=>typeof x.name==="string"&&Number.isInteger(x.expression)&&x.expression>=0&&x.expression<=10):[]}catch{return[]}};
+    let presets=read();
+    const refresh=()=>{saved.elm.innerHTML="";new Html("option").attr({value:""}).text("Saved presets…").appendTo(saved);presets.forEach((v,i)=>new Html("option").attr({value:String(i)}).text(v.name+" · FFL "+v.expression).appendTo(saved));};
+    const preview=()=>{scene?.setExpression(Number(expression.getValue()));status.text("Previewing FFL expression "+expression.getValue()+".");};
+    const button=(label,fn)=>addButtonSounds(new Html("button").text(label).style({width:"100%"}).on("click",fn));
+    expression.on("change",preview);
+    saved.on("change",()=>{const v=presets[Number(saved.getValue())];if(!v)return;expression.val(String(v.expression));name.val(v.name);preview();});
+    const save=()=>{const label=name.getValue().trim();if(!label)return Notify.show("Expression Creator","Name the expression first.");presets.push({name:label.slice(0,32),expression:Number(expression.getValue())});try{localStorage.setItem(key,JSON.stringify(presets));refresh();status.text("Saved "+label+".");}catch(e){presets.pop();Notify.show("Save failed",String(e));}};
+    const exportFile=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({format:"ThePJsMiiCreator.ExpressionPresets",version:1,presets},null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="pj-expression-presets.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    const input=new Html("input").attr({type:"file",accept:".json,application/json"}).style({display:"none"});
+    input.on("change",async()=>{const file=input.elm.files?.[0];input.elm.value="";if(!file)return;try{const data=JSON.parse(await file.text());if(data?.format!=="ThePJsMiiCreator.ExpressionPresets"||!Array.isArray(data.presets))throw Error("Unsupported preset file.");const incoming=data.presets.filter(v=>typeof v.name==="string"&&Number.isInteger(v.expression)&&v.expression>=0&&v.expression<=10);presets=[...presets,...incoming].slice(0,100);localStorage.setItem(key,JSON.stringify(presets));refresh();status.text("Imported "+incoming.length+" preset(s).");}catch(e){Notify.show("Import failed",String(e?.message||e));}});
+    panel.appendMany(title,note,new Html("div").text("Face expression"),expression,button("👁 Preview",preview),new Html("div").text("Custom preset name"),name,button("＋ Save preset",save),new Html("div").text("Saved presets"),saved,button("📤 Export presets",exportFile),button("📥 Import presets",()=>input.elm.click()),input, status,button("Close",()=>{panel.cleanup();this.ui.expressionCreatorPanel=null;scene?.setExpression(0);}));
+    this.ui.mii.append(panel);this.ui.expressionCreatorPanel=panel;refresh();preview();
   }
   openSecretVault() {
     if (this.ui.secretVaultPanel) {
