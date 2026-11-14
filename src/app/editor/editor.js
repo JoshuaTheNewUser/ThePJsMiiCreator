@@ -328,6 +328,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .on("click", () => this.openCustomPoseMaker()),
       )),
       (this.ui.expressionCreatorButton = addButtonSounds(new Html("button").text("🎭 Expression Creator").style({ position:"absolute", top:"1rem", right:"19rem", "z-index":"4" }).appendTo(this.ui.mii).on("click", () => this.openExpressionCreator()))),
+      (this.ui.gameLabButton = addButtonSounds(
+        new Html("button")
+          .text("🎮 Mii Game Lab")
+          .style({ position: "absolute", top: "13rem", left: "1rem", "z-index": "4" })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openMiiGameLab()),
+      )),
       (this.ui.sandboxButton = addButtonSounds(
         new Html("button")
           .text("🧪 Sandbox Mode")
@@ -2468,6 +2475,141 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         }, 13.33);
       (this.ui.scene.sparkle(), this.ui.scene.resize());
     }
+  }
+  openMiiGameLab() {
+    if (this.ui.miiGameLabPanel) {
+      this.ui.miiGameLabPanel.cleanup();
+      this.ui.miiGameLabPanel = null;
+      return;
+    }
+    const panel = new Html("section").classOn("mii-game-lab").style({
+      position: "absolute", inset: "3.5rem 1rem 1rem 1rem", "z-index": "8",
+      display: "flex", "flex-direction": "column", gap: "10px", padding: "14px",
+      "box-sizing": "border-box", overflow: "auto", color: "var(--text)",
+      background: "var(--container)", border: "1px solid var(--stroke)",
+      "border-radius": "14px", "box-shadow": "0 12px 36px #0008",
+    });
+    const header = new Html("div").style({ display: "flex", "align-items": "center", "justify-content": "space-between", gap: "10px", "flex-wrap": "wrap" });
+    const title = new Html("div").text("🎮 Mii Game Lab").style({ "font-size": "1.15rem", "font-weight": "800" });
+    const close = new Html("button").text("✕ Close").on("click", () => {
+      stopGame();
+      panel.cleanup();
+      this.ui.miiGameLabPanel = null;
+    });
+    header.appendMany(title, close);
+    const intro = new Html("div").text("Play a mini-game with the Mii you are currently editing. Collect stars, avoid obstacles, and build your high score.").style({ "font-size": "0.85rem", opacity: "0.85" });
+    const stats = new Html("div").style({ display: "flex", gap: "18px", "flex-wrap": "wrap", "font-weight": "700" });
+    const scoreText = new Html("span").text("⭐ Score: 0");
+    const bestText = new Html("span").text("🏆 Best: " + (Number(localStorage.getItem("pjs-mii-game-best") || 0) || 0));
+    const livesText = new Html("span").text("💚 Lives: 3");
+    stats.appendMany(scoreText, bestText, livesText);
+    const canvas = document.createElement("canvas");
+    canvas.width = 900; canvas.height = 420;
+    canvas.setAttribute("aria-label", "Mii Star Run game area");
+    Object.assign(canvas.style, { width: "100%", "max-height": "52vh", "min-height": "230px", "object-fit": "contain", background: "#142c27", border: "1px solid var(--stroke)", "border-radius": "10px", "touch-action": "none" });
+    const gameWrap = new Html("div").style({ width: "100%" });
+    gameWrap.elm.appendChild(canvas);
+    const controls = new Html("div").style({ display: "flex", gap: "8px", "flex-wrap": "wrap", "align-items": "center" });
+    const makeControl = (label, action) => new Html("button").text(label).on("click", action);
+    const startButton = makeControl("▶ Start / Restart", startGame);
+    const leftButton = makeControl("◀ Left", () => { player.vx = -4; });
+    const rightButton = makeControl("Right ▶", () => { player.vx = 4; });
+    const jumpButton = makeControl("⬆ Jump", jump);
+    const stopButton = makeControl("Ⅱ Pause", () => { paused = !paused; });
+    const modelButton = makeControl("🧊 Export this Mii as 3D GLB", () => openModelExportDialog(this.mii));
+    controls.appendMany(startButton, leftButton, rightButton, jumpButton, stopButton, modelButton);
+    const help = new Html("div").text("Keyboard: A / D or ← / → to move, Space / ↑ to jump. On touch screens, use the buttons. The 3D GLB export uses the existing model exporter.").style({ "font-size": "0.78rem", opacity: "0.75" });
+    const footer = new Html("div").text("More modes planned: obstacle courses, Mii racing, arena challenges, party games, and 3D character stages.").style({ "font-size": "0.8rem", "font-weight": "600" });
+    panel.appendMany(header, intro, stats, gameWrap, controls, help, footer);
+    panel.appendTo(this.ui.mii);
+    this.ui.miiGameLabPanel = panel;
+
+    const ctx = canvas.getContext("2d");
+    const player = { x: 90, y: 300, vx: 0, vy: 0, w: 34, h: 62, grounded: false };
+    let score = 0, lives = 3, running = false, paused = false, raf = 0, last = 0, spawn = 0;
+    let stars = [], obstacles = [], frame = 0;
+    const bestKey = "pjs-mii-game-best";
+    const hair = COMMON_COLORS_HEX[this.mii.hairColor] || "#27352e";
+    const skin = ["#f4c7a1", "#e8b18d", "#c98d68", "#8b5b42"][Math.max(0, Math.min(3, this.mii.facelineColor || 0))] || "#e8b18d";
+    const outfit = COMMON_COLORS_HEX[this.mii.shirtColor] || "#2c9a68";
+    const updateStats = () => {
+      scoreText.text("⭐ Score: " + score);
+      bestText.text("🏆 Best: " + (Number(localStorage.getItem(bestKey) || 0) || 0));
+      livesText.text("💚 Lives: " + lives);
+    };
+    const drawMii = (x, y) => {
+      ctx.fillStyle = outfit; ctx.fillRect(x + 5, y + 25, 24, 27);
+      ctx.fillStyle = "#25342e"; ctx.fillRect(x + 7, y + 50, 8, 12); ctx.fillRect(x + 20, y + 50, 8, 12);
+      ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(x + 17, y + 13, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(x + 17, y + 9, 13, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#17231f"; ctx.beginPath(); ctx.arc(x + 12, y + 14, 1.5, 0, Math.PI * 2); ctx.arc(x + 22, y + 14, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#7b3e36"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x + 17, y + 17, 4, 0.15, Math.PI - 0.15); ctx.stroke();
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const sky = ctx.createLinearGradient(0, 0, 0, canvas.height); sky.addColorStop(0, "#193c38"); sky.addColorStop(1, "#376c54");
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#b8e7a1"; ctx.globalAlpha = 0.15;
+      for (let i = 0; i < 9; i++) { ctx.beginPath(); ctx.arc((i * 137 + frame * 0.2) % 950, 65 + (i % 3) * 35, 18 + (i % 4) * 7, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#1b3029"; ctx.fillRect(0, 365, 900, 55);
+      ctx.fillStyle = "#79bd70"; ctx.fillRect(0, 365, 900, 7);
+      stars.forEach(s => { ctx.fillStyle = "#ffe36e"; ctx.font = "28px sans-serif"; ctx.fillText("★", s.x, s.y); });
+      obstacles.forEach(o => { ctx.fillStyle = "#e58a5a"; ctx.fillRect(o.x, o.y, o.w, o.h); ctx.fillStyle = "#f6c08b"; ctx.fillRect(o.x + 5, o.y + 5, o.w - 10, 5); });
+      drawMii(player.x, player.y);
+      if (!running || paused) {
+        ctx.fillStyle = "#071510bb"; ctx.fillRect(0, 0, 900, 420);
+        ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.font = "bold 30px sans-serif";
+        ctx.fillText(paused ? "PAUSED" : score ? "GAME OVER — PLAY AGAIN?" : "MII STAR RUN", 450, 185);
+        ctx.font = "17px sans-serif"; ctx.fillText("Collect stars • dodge the blocks", 450, 220);
+      }
+    };
+    const stopGame = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; };
+    const jump = () => { if (running && !paused && player.grounded) { player.vy = -11; player.grounded = false; } };
+    const startGame = () => {
+      stopGame(); score = 0; lives = 3; spawn = 0; frame = 0; stars = []; obstacles = [];
+      Object.assign(player, { x: 90, y: 300, vx: 0, vy: 0, grounded: false });
+      running = true; paused = false; last = performance.now(); updateStats(); raf = requestAnimationFrame(tick);
+    };
+    const tick = (now) => {
+      if (!running) return;
+      raf = requestAnimationFrame(tick);
+      if (paused) { draw(); return; }
+      const dt = Math.min(2, (now - last) / 16.67 || 1); last = now; frame += dt;
+      player.x = Math.max(0, Math.min(860, player.x + player.vx * dt)); player.vx *= Math.pow(0.78, dt);
+      player.vy += 0.55 * dt; player.y += player.vy * dt;
+      if (player.y + player.h >= 365) { player.y = 365 - player.h; player.vy = 0; player.grounded = true; }
+      spawn += dt;
+      if (spawn > 62) {
+        spawn = 0;
+        if (Math.random() > 0.38) stars.push({ x: 920, y: 260 + Math.random() * 65 });
+        else obstacles.push({ x: 920, y: 325, w: 27, h: 40 });
+      }
+      stars.forEach(s => s.x -= 5.2 * dt); obstacles.forEach(o => o.x -= 5.5 * dt);
+      stars = stars.filter(s => {
+        if (Math.abs(s.x - (player.x + 17)) < 25 && Math.abs(s.y - (player.y + 30)) < 35) { score += 10; return false; }
+        return s.x > -40;
+      });
+      obstacles = obstacles.filter(o => {
+        const hit = player.x + player.w > o.x && player.x < o.x + o.w && player.y + player.h > o.y && player.y < o.y + o.h;
+        if (hit) { lives--; player.x = Math.max(35, player.x - 45); updateStats(); if (lives <= 0) { running = false; const best = Math.max(score, Number(localStorage.getItem(bestKey) || 0)); localStorage.setItem(bestKey, String(best)); updateStats(); } return false; }
+        return o.x > -50;
+      });
+      if (Math.floor(frame) % 120 === 0) score += 1;
+      updateStats(); draw();
+    };
+    const keyDown = (event) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", " "].includes(event.key)) event.preventDefault();
+      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") player.vx = -4.5;
+      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") player.vx = 4.5;
+      if (event.key === "ArrowUp" || event.key === " ") jump();
+    };
+    const keyUp = (event) => { if (["ArrowLeft", "ArrowRight", "a", "d"].includes(event.key)) player.vx *= 0.25; };
+    document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+    const originalCleanup = panel.cleanup.bind(panel);
+    panel.cleanup = () => { stopGame(); document.removeEventListener("keydown", keyDown); document.removeEventListener("keyup", keyUp); originalCleanup(); };
+    draw();
   }
   #l() {
     (this.ui.mii.qs("button").classOn("disabled"),
