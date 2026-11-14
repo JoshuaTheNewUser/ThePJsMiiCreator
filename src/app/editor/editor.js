@@ -1456,6 +1456,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       resetAll = () => {
         for (let bone of bones) {
           offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+          translations.set(bone.name, { x: 0, y: 0, z: 0 }); boneScales.set(bone.name, { x: 1, y: 1, z: 1 });
           bone.quaternion.copy(originals.get(bone.name));
           bone.position.copy(basePositions.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
@@ -1473,7 +1474,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           gender: this.mii.gender,
           bellySize: Number(bellyInput.getValue()),
           bones: Object.fromEntries(
-            Array.from(offsets.entries()).filter(([, value]) => value.x || value.y || value.z),
+            bones.map((bone) => [bone.name, { rotation: { ...offsets.get(bone.name) }, position: { ...translations.get(bone.name) }, scale: { ...boneScales.get(bone.name) } }]).filter(([, value]) => Object.values(value.rotation).some(Boolean) || Object.values(value.position).some(Boolean) || Object.values(value.scale).some((amount) => amount !== 1)),
           ),
         };
         let blob = new Blob([JSON.stringify(pose, null, 2)], { type: "application/json" }),
@@ -1493,13 +1494,12 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             throw new Error("This file is not a supported Custom Pose JSON.");
           resetAll();
           for (let [name, value] of Object.entries(pose.bones)) {
-            if (!offsets.has(name) || !value || !["x", "y", "z"].every((axis) => Number.isFinite(Number(value[axis] ?? 0))))
-              continue;
-            offsets.set(name, {
-              x: Math.max(-180, Math.min(180, Number(value.x) || 0)),
-              y: Math.max(-180, Math.min(180, Number(value.y) || 0)),
-              z: Math.max(-180, Math.min(180, Number(value.z) || 0)),
-            });
+            if (!offsets.has(name) || !value) continue;
+            const rotation = value.rotation || value, position = value.position || { x: 0, y: 0, z: 0 }, scale = value.scale || { x: 1, y: 1, z: 1 };
+            if (![...["x","y","z"].map((axis) => rotation[axis] ?? 0), ...["x","y","z"].map((axis) => position[axis] ?? 0), ...["x","y","z"].map((axis) => scale[axis] ?? 1)].every((amount) => Number.isFinite(Number(amount)))) continue;
+            offsets.set(name, { x: Math.max(-180, Math.min(180, Number(rotation.x) || 0)), y: Math.max(-180, Math.min(180, Number(rotation.y) || 0)), z: Math.max(-180, Math.min(180, Number(rotation.z) || 0)) });
+            translations.set(name, { x: Math.max(-2, Math.min(2, Number(position.x) || 0)), y: Math.max(-2, Math.min(2, Number(position.y) || 0)), z: Math.max(-2, Math.min(2, Number(position.z) || 0)) });
+            boneScales.set(name, { x: Math.max(0.25, Math.min(3, Number(scale.x ?? 1))), y: Math.max(0.25, Math.min(3, Number(scale.y ?? 1))), z: Math.max(0.25, Math.min(3, Number(scale.z ?? 1))) });
             applyBone(name);
           }
           if (bellyBone && Number.isFinite(Number(pose.bellySize))) {
@@ -1553,11 +1553,17 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       squashInput = new Html("input").attr({ type: "range", min: "70", max: "140", step: "1", value: "100" }).style({ width: "100%" }),
       timelineLabel = new Html("div").text("Motion timeline · 0 keyframes"),
       timelineInput = new Html("input").attr({ type: "range", min: "0", max: "1000", step: "1", value: "0" }).style({ width: "100%" }),
-      captureFrame = () => Object.fromEntries(Array.from(offsets.entries()).map(([name, value]) => [name, { ...value }])),
+      captureFrame = () => Object.fromEntries(Array.from(offsets.entries()).map(([name, rotation]) => [name, {
+        rotation: { ...rotation }, position: { ...(translations.get(name) || { x: 0, y: 0, z: 0 }) },
+        scale: { ...(boneScales.get(name) || { x: 1, y: 1, z: 1 }) },
+      }])),
       applyFrame = (frame) => {
         for (let bone of bones) {
-          let value = frame?.[bone.name] || { x: 0, y: 0, z: 0 };
-          offsets.set(bone.name, { x: Number(value.x) || 0, y: Number(value.y) || 0, z: Number(value.z) || 0 });
+          const value = frame?.[bone.name] || { rotation: { x: 0, y: 0, z: 0 }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+          const rotation = value.rotation || value;
+          offsets.set(bone.name, { x: Number(rotation.x) || 0, y: Number(rotation.y) || 0, z: Number(rotation.z) || 0 });
+          translations.set(bone.name, { x: Number(value.position?.x) || 0, y: Number(value.position?.y) || 0, z: Number(value.position?.z) || 0 });
+          boneScales.set(bone.name, { x: Number(value.scale?.x ?? 1), y: Number(value.scale?.y ?? 1), z: Number(value.scale?.z ?? 1) });
           applyBone(bone.name);
         }
         updateControls();
@@ -1573,7 +1579,11 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             .replace(/Left/g, "__SIDE__").replace(/Right/g, "Left").replace(/__SIDE__/g, "Right")
             .replace(/_L\b/g, "__SIDE__").replace(/_R\b/g, "_L").replace(/__SIDE__/g, "_R")
             .replace(/\.L\b/g, "__SIDE__").replace(/\.R\b/g, ".L").replace(/__SIDE__/g, ".R");
-          mirrored[offsets.has(other) ? other : name] = { x: value.x, y: -value.y, z: -value.z };
+          mirrored[offsets.has(other) ? other : name] = {
+            rotation: { x: value.rotation.x, y: -value.rotation.y, z: -value.rotation.z },
+            position: { x: -value.position.x, y: value.position.y, z: value.position.z },
+            scale: { ...value.scale },
+          };
         }
         applyFrame(mirrored);
       },
@@ -1583,8 +1593,14 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           left = Math.floor(framePosition), right = Math.min(keyframes.length - 1, left + 1),
           blend = framePosition - left, a = keyframes[left].pose, b = keyframes[right].pose, result = {};
         for (let bone of bones) {
-          let av = a[bone.name] || { x: 0, y: 0, z: 0 }, bv = b[bone.name] || { x: 0, y: 0, z: 0 };
-          result[bone.name] = { x: av.x + (bv.x - av.x) * blend, y: av.y + (bv.y - av.y) * blend, z: av.z + (bv.z - av.z) * blend };
+          let av = a[bone.name] || { rotation: { x: 0, y: 0, z: 0 }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+          let bv = b[bone.name] || { rotation: { x: 0, y: 0, z: 0 }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
+          const blendAxis = (key, fallback) => ({
+            x: (av[key]?.x ?? fallback) + ((bv[key]?.x ?? fallback) - (av[key]?.x ?? fallback)) * blend,
+            y: (av[key]?.y ?? fallback) + ((bv[key]?.y ?? fallback) - (av[key]?.y ?? fallback)) * blend,
+            z: (av[key]?.z ?? fallback) + ((bv[key]?.z ?? fallback) - (av[key]?.z ?? fallback)) * blend,
+          });
+          result[bone.name] = { rotation: blendAxis("rotation", 0), position: blendAxis("position", 0), scale: blendAxis("scale", 1) };
         }
         applyFrame(result);
       },
