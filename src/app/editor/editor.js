@@ -45,6 +45,12 @@ class MiiEditor {
     ((window.editor = this),
       (g9 = this),
       (this.secretUnlocks = new Set()),
+      (() => {
+        try {
+          for (let id of JSON.parse(localStorage.getItem("thepjsmiicreator-secrets") || "[]"))
+            this.secretUnlocks.add(id);
+        } catch {}
+      })(),
       (this.secretKeyBuffer = []),
       (this.secretClickCount = 0),
       (this.#e = i),
@@ -323,13 +329,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       )),
       (this.ui.secretVaultButton = addButtonSounds(
         new Html("button")
-          .text("🔒 Secret Vault")
+          .text("🔓 Secret Vault (" + this.secretUnlocks.size + ")")
           .style({
             position: "absolute",
             top: "4rem",
             right: "1rem",
             "z-index": "4",
-            display: "none",
+            display: this.secretUnlocks.size ? "block" : "none",
           })
           .appendTo(this.ui.mii)
           .on("click", () => this.openSecretVault()),
