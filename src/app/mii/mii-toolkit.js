@@ -148,6 +148,7 @@ function installMiiToolkitHub() {
       const sourceRoot = new URL("../src/vendor/ffljs/", document.baseURI).href;
       await ffljsLoadScript(sourceRoot + "ffl-emscripten.cjs", "emscripten");
       await ffljsLoadScript(sourceRoot + "ffl.browser.js", "renderer");
+      await ffljsLoadScript(sourceRoot + "FFLShaderMaterial.browser.js", "material");
       if (!window.ModuleFFL || !window.FFLjs) throw new Error("FFL.js globals were not initialized.");
       ffljsStatus.textContent = "Initializing WebAssembly and loading your FFL resource…";
       const wasmUrl = "https://raw.githubusercontent.com/ariankordi/FFL.js/v2.2.2/ffl-emscripten.wasm";
@@ -158,7 +159,7 @@ function installMiiToolkitHub() {
       ffljsRenderer.setPixelRatio(1); ffljsRenderer.setSize(300, 300);
       ffljsScene = new three.Scene();
       ffljsCamera = window.FFLjs.ModelIcon.getCamera();
-      ffljsModel = new window.FFLjs.CharModel(ffljsInstance, data, window.FFLjs.FFLCharModelDescDefault, window.FFLShaderMaterial, ffljsRenderer);
+      ffljsModel = new window.FFLjs.CharModel(ffljsInstance, data, window.FFLjs.FFLCharModelDescDefault, (window.FFLShaderMaterial || three.MeshStandardMaterial), ffljsRenderer);
       ffljsScene.add(ffljsModel.meshes);
       ffljsPreview.appendChild(ffljsRenderer.domElement);
       ffljsRenderer.render(ffljsScene, ffljsCamera);
