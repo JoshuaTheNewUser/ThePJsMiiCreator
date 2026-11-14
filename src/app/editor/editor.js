@@ -327,6 +327,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openCustomPoseMaker()),
       )),
+      (this.ui.modelLabButton = addButtonSounds(
+        new Html("button")
+          .text("Model Lab")
+          .style({
+            position: "absolute",
+            top: "4rem",
+            left: "1rem",
+            "z-index": "4",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openModelLab()),
+      )),
       (this.ui.secretVaultButton = addButtonSounds(
         new Html("button")
           .text("🔓 Secret Vault (" + this.secretUnlocks.size + ")")
@@ -373,6 +385,145 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             this.#r(t);
           }));
       }));
+  }
+  openModelLab() {
+    if (this.ui.modelLabPanel) {
+      this.ui.modelLabPanel.cleanup();
+      this.ui.modelLabPanel = null;
+      return;
+    }
+    let max = this.mii.personality === 24 ? 255 : 127,
+      original = { height: this.mii.height, build: this.mii.build },
+      panel = new Html("div").style({
+        position: "absolute",
+        left: "1rem",
+        bottom: "4.5rem",
+        width: "min(320px, calc(100vw - 2rem))",
+        "max-height": "min(65vh, 520px)",
+        "overflow-y": "auto",
+        "box-sizing": "border-box",
+        padding: "14px",
+        display: "flex",
+        "flex-direction": "column",
+        gap: "10px",
+        color: "var(--text)",
+        background: "var(--container)",
+        border: "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "box-shadow": "0 8px 28px #0005",
+        "z-index": "7",
+      }),
+      heading = new Html("div").text("🧪 Model Lab").style({
+        "font-weight": "700",
+        "font-size": "1.05rem",
+      }),
+      help = new Html("small").text("Adjust the Mii's body proportions. Changes preview in the 3D viewer."),
+      makeControl = (label, property, value) => {
+        let wrapper = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "5px" }),
+          caption = new Html("label").text(label + ": " + value),
+          input = new Html("input").attr({
+            type: "range",
+            min: "0",
+            max: String(max),
+            step: "1",
+            value: String(value),
+          }).style({ width: "100%" });
+        input.on("input", () => {
+          this.mii[property] = Number(input.getValue());
+          caption.text(label + ": " + this.mii[property] + "/" + max);
+        });
+        input.on("change", () => this.render(!0, 0, 1));
+        wrapper.appendMany(caption, input);
+        return { wrapper, input, caption, property };
+      },
+      heightControl = makeControl("Height", "height", this.mii.height),
+      buildControl = makeControl("Build", "build", this.mii.build),
+      refresh = () => {
+        heightControl.input.val(String(this.mii.height));
+        buildControl.input.val(String(this.mii.build));
+        heightControl.caption.text("Height: " + this.mii.height + "/" + max);
+        buildControl.caption.text("Build: " + this.mii.build + "/" + max);
+        this.render(!0, 0, 1);
+      },
+      setPreset = (height, build) => {
+        this.mii.height = Math.max(0, Math.min(max, height));
+        this.mii.build = Math.max(0, Math.min(max, build));
+        refresh();
+      },
+      presetGrid = new Html("div").style({
+        display: "grid",
+        "grid-template-columns": "1fr 1fr",
+        gap: "7px",
+      }),
+      makeButton = (label, callback) =>
+        addButtonSounds(new Html("button").text(label).style({ width: "100%" }).on("click", callback));
+    for (let [label, height, build] of [
+      ["Balanced", 64, 64],
+      ["Short", 28, 55],
+      ["Tall", 105, 55],
+      ["Compact", 55, 100],
+      ["Slim build", 64, 25],
+      ["Broad build", 64, 110],
+    ]) {
+      presetGrid.append(makeButton(label, () => setPreset(height, build)));
+    }
+    let actions = new Html("div").style({
+      display: "grid",
+      "grid-template-columns": "1fr 1fr",
+      gap: "7px",
+    });
+    actions.appendMany(
+      makeButton("Reset", () => setPreset(original.height, original.build)),
+      makeButton("Randomize", () => setPreset(
+        Math.floor(Math.random() * (max + 1)),
+        Math.floor(Math.random() * (max + 1)),
+      )),
+      makeButton("Save preset", () => {
+        try {
+          localStorage.setItem("thepjsmiicreator-model-" + this.mii.gender,
+            JSON.stringify({ height: this.mii.height, build: this.mii.build }));
+          Notify.show("Model Lab", "Model preset saved in this browser.");
+        } catch (error) {
+          Notify.show("Save failed", String(error?.message || error));
+        }
+      }),
+      makeButton("Load preset", () => {
+        try {
+          let saved = JSON.parse(localStorage.getItem("thepjsmiicreator-model-" + this.mii.gender) || "null");
+          if (!saved || !Number.isFinite(Number(saved.height)) || !Number.isFinite(Number(saved.build))) {
+            Notify.show("Model Lab", "No valid model preset was found in this browser.");
+            return;
+          }
+          setPreset(Number(saved.height), Number(saved.build));
+        } catch (error) {
+          Notify.show("Load failed", String(error?.message || error));
+        }
+      }),
+      makeButton("Export model JSON", () => {
+        let blob = new Blob([JSON.stringify({
+          format: "ThePJsMiiCreator.ModelPreset",
+          version: 1,
+          gender: this.mii.gender,
+          height: this.mii.height,
+          build: this.mii.build,
+        }, null, 2)], { type: "application/json" }),
+          url = URL.createObjectURL(blob),
+          link = document.createElement("a");
+        link.href = url;
+        link.download = (this.mii.nickname.trim() || "Mii") + "-model-preset.json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }),
+      makeButton("Close", () => {
+        panel.cleanup();
+        this.ui.modelLabPanel = null;
+      }),
+    );
+    panel.appendMany(heading, help, heightControl.wrapper, buildControl.wrapper, presetGrid, actions);
+    this.ui.mii.append(panel);
+    this.ui.modelLabPanel = panel;
   }
   openAnimationStudio() {
     if (this.ui.animationStudioPanel) {
