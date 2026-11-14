@@ -2511,7 +2511,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     gameWrap.elm.appendChild(canvas);
     const controls = new Html("div").style({ display: "flex", gap: "8px", "flex-wrap": "wrap", "align-items": "center" });
     const makeControl = (label, action) => new Html("button").text(label).on("click", action);
-    const startButton = makeControl("▶ Start / Restart", startGame);
+    const startButton = makeControl("▶ Start / Restart", () => startGame());
     const leftButton = makeControl("◀ Left", () => { player.vx = -4; });
     const rightButton = makeControl("Right ▶", () => { player.vx = 4; });
     const jumpButton = makeControl("⬆ Jump", jump);
