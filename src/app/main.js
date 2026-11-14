@@ -530,6 +530,7 @@ Loading will not continue.`,
     } else openLibrary();
   else openLibrary();
   setTimeout(installCreatorHub, 900);
+  setTimeout(installMiiToolkitHub, 1200);
 }
 var localforage = In(Hs(), 1);
 document.documentElement.dataset.theme = "sw2";
