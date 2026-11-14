@@ -294,12 +294,161 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         this.ui.scene.cameraRecenter(!0);
       }),
       this.ui.mii.qs(".loader").classOff("active"),
+      (this.ui.animationStudioButton = addButtonSounds(
+        new Html("button")
+          .text(translate("Animation Studio"))
+          .style({
+            position: "absolute",
+            top: "1rem",
+            right: "1rem",
+            "z-index": "4",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openAnimationStudio()),
+      )),
       getSetting("shaderTypeN").then((e) => {
         ((this.#g = e),
           getSetting("bodyModelN").then((t) => {
             this.#r(t);
           }));
       }));
+  }
+  openAnimationStudio() {
+    if (this.ui.animationStudioPanel) {
+      this.ui.animationStudioPanel.cleanup();
+      this.ui.animationStudioPanel = null;
+      return;
+    }
+    let scene = this.ui.scene,
+      model = scene?.bodyModels?.get(this.mii.gender),
+      actions = model?.actions;
+    if (!actions || actions.size === 0) {
+      Notify.show(
+        translate("Animation Studio"),
+        translate("Animations are still loading, or this body model has no animations."),
+      );
+      return;
+    }
+    let names = Array.from(actions.keys()).map(String),
+      selected = names.includes(scene.currentAnim) ? scene.currentAnim : names[0],
+      panel = new Html("div").classOn("animation-studio-panel").style({
+        position: "absolute",
+        top: "4.5rem",
+        right: "1rem",
+        width: "min(320px, calc(100vw - 2rem))",
+        "box-sizing": "border-box",
+        padding: "14px",
+        display: "flex",
+        "flex-direction": "column",
+        gap: "10px",
+        color: "var(--text)",
+        background: "var(--container)",
+        border: "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "box-shadow": "0 8px 28px #0005",
+        "z-index": "5",
+      }),
+      heading = new Html("div").text(translate("Animation Studio")).style({
+        "font-weight": "700",
+        "font-size": "1.05rem",
+      }),
+      animationSelect = new Html("select").style({
+        width: "100%",
+        padding: "8px",
+        "border-radius": "8px",
+        background: "var(--background)",
+        color: "var(--text)",
+      }),
+      loopLabel = new Html("label").style({ display: "flex", gap: "8px", "align-items": "center" }),
+      loopInput = new Html("input").attr({ type: "checkbox", checked: "checked" }),
+      speedLabel = new Html("label").text(translate("Playback speed")).style({
+        display: "flex",
+        "justify-content": "space-between",
+        "align-items": "center",
+      }),
+      speedInput = new Html("input").attr({
+        type: "range",
+        min: "0.25",
+        max: "2",
+        step: "0.25",
+        value: "1",
+      }).style({ width: "100%" }),
+      speedValue = new Html("span").text("1×"),
+      controls = new Html("div").style({
+        display: "flex",
+        gap: "8px",
+        "flex-wrap": "wrap",
+      }),
+      makeButton = (label, callback) =>
+        addButtonSounds(
+          new Html("button")
+            .text(label)
+            .style({ flex: "1", "min-width": "70px" })
+            .on("click", callback),
+        ),
+      getSelectedAction = () => actions.get(animationSelect.getValue()),
+      applySpeed = () => {
+        let action = getSelectedAction();
+        if (action) action.setEffectiveTimeScale(Number(speedInput.getValue()));
+      },
+      play = () => {
+        let action = getSelectedAction(),
+          name = animationSelect.getValue();
+        if (!action) return;
+        if (scene.currentAnim !== name) scene.swapAnimation(name, !0, !loopInput.elm.checked);
+        action.paused = !1;
+        action.play();
+        setTimeout(applySpeed, 50);
+      },
+      pause = () => {
+        let action = getSelectedAction();
+        if (action) action.paused = !0;
+      },
+      restart = () => {
+        let name = animationSelect.getValue();
+        if (!name) return;
+        scene.swapAnimation(name, !0, !loopInput.elm.checked, 0);
+        setTimeout(applySpeed, 50);
+      };
+    for (let name of names)
+      new Html("option").attr({ value: name }).text(name).appendTo(animationSelect);
+    animationSelect.val(selected);
+    loopLabel.appendMany(loopInput, new Html("span").text(translate("Loop")));
+    speedLabel.append(speedValue);
+    speedInput.on("input", () => {
+      speedValue.text(Number(speedInput.getValue()).toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "×");
+      applySpeed();
+    });
+    animationSelect.on("change", () => {
+      scene.swapAnimation(animationSelect.getValue(), !1, !loopInput.elm.checked);
+      setTimeout(applySpeed, 50);
+    });
+    loopInput.on("change", () => {
+      let action = getSelectedAction();
+      if (action) {
+        action.loop = loopInput.elm.checked ? 2201 : 2200;
+        action.clampWhenFinished = !loopInput.elm.checked;
+      }
+    });
+    controls.appendMany(
+      makeButton(translate("Play"), play),
+      makeButton(translate("Pause"), pause),
+      makeButton(translate("Restart"), restart),
+    );
+    let close = makeButton(translate("Close"), () => {
+      panel.cleanup();
+      this.ui.animationStudioPanel = null;
+    });
+    panel.appendMany(
+      heading,
+      animationSelect,
+      loopLabel,
+      speedLabel,
+      speedInput,
+      controls,
+      close,
+    );
+    (this.ui.mii.append(panel), (this.ui.animationStudioPanel = panel));
   }
   #g;
   get shaderType() {
