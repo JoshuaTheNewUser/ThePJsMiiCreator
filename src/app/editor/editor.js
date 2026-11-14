@@ -1973,29 +1973,152 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     Notify.show("✨ " + title, message);
   }
   openExpressionCreator() {
-    if (this.ui.expressionCreatorPanel) { this.ui.expressionCreatorPanel.cleanup(); this.ui.expressionCreatorPanel = null; this.ui.scene?.setExpression(0); return; }
-    const scene = this.ui.scene, panel = new Html("div").style({ position:"absolute", top:"4.5rem", right:"1rem", width:"min(330px, calc(100vw - 2rem))", "max-height":"70vh", overflow:"auto", padding:"14px", display:"flex", "flex-direction":"column", gap:"9px", color:"var(--text)", background:"var(--container)", border:"1px solid var(--stroke)", "border-radius":"12px", "z-index":"7" });
-    const title = new Html("div").text("🎭 Custom Expression Creator").style({ "font-weight":"700" });
-    const note = new Html("div").text("Preview built-in FFL face expressions, name your favourites, and save/export your own expression preset collection.").style({ "font-size":"0.82rem", opacity:"0.85" });
-    const expression = new Html("select").style({ width:"100%", padding:"8px", background:"var(--background)", color:"var(--text)" });
-    for (let id=0; id<=10; id++) new Html("option").attr({value:String(id)}).text("FFL expression "+id).appendTo(expression);
-    const name = new Html("input").attr({type:"text", maxlength:"32", placeholder:"Name this expression…"}).style({width:"100%", padding:"8px", "box-sizing":"border-box"});
-    const saved = new Html("select").style({width:"100%", padding:"8px", background:"var(--background)", color:"var(--text)"});
-    const status = new Html("div").text("Choose an expression to preview it.").style({"font-size":"0.8rem"});
-    const key="thepjsmiicreator-expression-presets-v1";
-    const read=()=>{try{const v=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(v)?v.filter(x=>typeof x.name==="string"&&Number.isInteger(x.expression)&&x.expression>=0&&x.expression<=10):[]}catch{return[]}};
-    let presets=read();
-    const refresh=()=>{saved.elm.innerHTML="";new Html("option").attr({value:""}).text("Saved presets…").appendTo(saved);presets.forEach((v,i)=>new Html("option").attr({value:String(i)}).text(v.name+" · FFL "+v.expression).appendTo(saved));};
-    const preview=()=>{scene?.setExpression(Number(expression.getValue()));status.text("Previewing FFL expression "+expression.getValue()+".");};
-    const button=(label,fn)=>addButtonSounds(new Html("button").text(label).style({width:"100%"}).on("click",fn));
-    expression.on("change",preview);
-    saved.on("change",()=>{const v=presets[Number(saved.getValue())];if(!v)return;expression.val(String(v.expression));name.val(v.name);preview();});
-    const save=()=>{const label=name.getValue().trim();if(!label)return Notify.show("Expression Creator","Name the expression first.");presets.push({name:label.slice(0,32),expression:Number(expression.getValue())});try{localStorage.setItem(key,JSON.stringify(presets));refresh();status.text("Saved "+label+".");}catch(e){presets.pop();Notify.show("Save failed",String(e));}};
-    const exportFile=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({format:"ThePJsMiiCreator.ExpressionPresets",version:1,presets},null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="pj-expression-presets.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-    const input=new Html("input").attr({type:"file",accept:".json,application/json"}).style({display:"none"});
-    input.on("change",async()=>{const file=input.elm.files?.[0];input.elm.value="";if(!file)return;try{const data=JSON.parse(await file.text());if(data?.format!=="ThePJsMiiCreator.ExpressionPresets"||!Array.isArray(data.presets))throw Error("Unsupported preset file.");const incoming=data.presets.filter(v=>typeof v.name==="string"&&Number.isInteger(v.expression)&&v.expression>=0&&v.expression<=10);presets=[...presets,...incoming].slice(0,100);localStorage.setItem(key,JSON.stringify(presets));refresh();status.text("Imported "+incoming.length+" preset(s).");}catch(e){Notify.show("Import failed",String(e?.message||e));}});
-    panel.appendMany(title,note,new Html("div").text("Face expression"),expression,button("👁 Preview",preview),new Html("div").text("Custom preset name"),name,button("＋ Save preset",save),new Html("div").text("Saved presets"),saved,button("📤 Export presets",exportFile),button("📥 Import presets",()=>input.elm.click()),input, status,button("Close",()=>{panel.cleanup();this.ui.expressionCreatorPanel=null;scene?.setExpression(0);}));
-    this.ui.mii.append(panel);this.ui.expressionCreatorPanel=panel;refresh();preview();
+    if (this.ui.expressionCreatorPanel) {
+      this.ui.expressionCreatorPanel.cleanup();
+      this.ui.expressionCreatorPanel = null;
+      return;
+    }
+    const panel = new Html("div").style({
+      position: "absolute", top: "4.5rem", right: "1rem",
+      width: "min(380px, calc(100vw - 2rem))", "max-height": "78vh",
+      overflow: "auto", padding: "14px", display: "flex",
+      "flex-direction": "column", gap: "9px", color: "var(--text)",
+      background: "var(--container)", border: "1px solid var(--stroke)",
+      "border-radius": "12px", "z-index": "7",
+    });
+    const title = new Html("div").text("🎭 Asset Expression Creator").style({ "font-weight": "700" });
+    const note = new Html("div").text("Build an expression from the same numeric face-part assets used by the Mii editor. Preview it on this Mii, save it locally, or export a PJ expression .dat file.").style({ "font-size": "0.82rem", opacity: "0.85" });
+    const key = "thepjsmiicreator-expression-presets-v2";
+    const original = {};
+    const fields = {
+      eyebrowType: { label: "Eyebrow asset", max: 23 },
+      eyeType: { label: "Eye asset", max: 59 },
+      mouthType: { label: "Mouth asset", max: 35 },
+      eyebrowRotate: { label: "Eyebrow rotation", max: 31 },
+      eyeRotate: { label: "Eye rotation", max: 31 },
+      mouthY: { label: "Mouth vertical position", max: 31 },
+      eyeY: { label: "Eye vertical position", max: 31 },
+      eyebrowY: { label: "Eyebrow vertical position", max: 31 },
+    };
+    const controls = {};
+    const status = new Html("div").text("Choose assets and preview your expression.").style({ "font-size": "0.8rem" });
+    const read = () => {
+      try {
+        const data = JSON.parse(localStorage.getItem(key) || "[]");
+        return Array.isArray(data) ? data.filter(item =>
+          item && typeof item.name === "string" && item.assets &&
+          Object.entries(fields).every(([field, config]) =>
+            Number.isInteger(item.assets[field]) && item.assets[field] >= 0 && item.assets[field] <= config.max
+          )
+        ) : [];
+      } catch { return []; }
+    };
+    let presets = read();
+    for (const [field, config] of Object.entries(fields)) {
+      original[field] = Number(this.mii[field]) || 0;
+      const wrap = new Html("label").style({ display: "flex", "flex-direction": "column", gap: "4px", "font-size": "0.85rem" });
+      wrap.append(new Html("span").text(config.label));
+      const select = new Html("select").style({ width: "100%", padding: "7px", color: "var(--text)", background: "var(--background)" });
+      for (let value = 0; value <= config.max; value++)
+        new Html("option").attr({ value: String(value) }).text("Asset " + value).appendTo(select);
+      select.val(String(original[field]));
+      controls[field] = select;
+      wrap.append(select);
+      panel.append(wrap);
+    }
+    const name = new Html("input").attr({ type: "text", maxlength: "40", placeholder: "Name this expression…" }).style({ width: "100%", padding: "8px", "box-sizing": "border-box" });
+    const saved = new Html("select").style({ width: "100%", padding: "8px", color: "var(--text)", background: "var(--background)" });
+    const button = (label, callback) => addButtonSounds(new Html("button").text(label).style({ width: "100%" }).on("click", callback));
+    const values = () => Object.fromEntries(Object.entries(controls).map(([field, select]) => [field, Number(select.getValue())]));
+    const apply = async (assets) => {
+      for (const [field, value] of Object.entries(assets)) {
+        if (fields[field]) this.mii[field] = Math.max(0, Math.min(fields[field].max, Number(value) || 0));
+      }
+      await this.render(true, 0, 1);
+    };
+    const refresh = () => {
+      saved.elm.replaceChildren();
+      new Html("option").attr({ value: "" }).text("Saved expressions…").appendTo(saved);
+      presets.forEach((preset, index) => new Html("option").attr({ value: String(index) }).text(preset.name).appendTo(saved));
+    };
+    const save = () => {
+      const label = name.getValue().trim();
+      if (!label) return Notify.show("Expression Creator", "Give this expression a name first.");
+      const preset = { name: label.slice(0, 40), assets: values(), version: 2, createdAt: new Date().toISOString() };
+      presets.push(preset);
+      try {
+        localStorage.setItem(key, JSON.stringify(presets.slice(-100)));
+        presets = presets.slice(-100);
+        refresh();
+        status.text("Saved " + preset.name + " to this browser.");
+      } catch (error) {
+        presets.pop();
+        Notify.show("Save failed", String(error?.message || error));
+      }
+    };
+    const exportCustom = () => {
+      const payload = { format: "ThePJsMiiCreator.ExpressionDAT", version: 2, name: name.getValue().trim() || "Custom Expression", assets: values() };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/octet-stream" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = (payload.name.replace(/[^a-z0-9_-]+/gi, "_") || "expression") + ".dat";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status.text("Exported PJ Expression .dat (custom format).");
+    };
+    const exportMii = () => {
+      try {
+        const bytes = this.mii.export("switchCharInfo");
+        const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = (this.mii.nickname || "mii").replace(/[^a-z0-9_-]+/gi, "_") + "_switch-charinfo.dat";
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.text("Exported Nintendo Switch CharInfo data. This is a Mii file, not a PJ expression file.");
+      } catch (error) { Notify.show("Mii DAT export failed", String(error?.message || error)); }
+    };
+    const importInput = new Html("input").attr({ type: "file", accept: ".dat,.json,application/json" }).style({ display: "none" });
+    importInput.on("change", async () => {
+      const file = importInput.elm.files?.[0];
+      importInput.elm.value = "";
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data?.format !== "ThePJsMiiCreator.ExpressionDAT" || data.version !== 2 || !data.assets)
+          throw Error("This is not a supported PJ Expression .dat file. Nintendo Mii DAT files are exported separately.");
+        await apply(data.assets);
+        name.val(String(data.name || "Imported expression"));
+        status.text("Imported and applied " + (data.name || "expression") + ".");
+      } catch (error) { Notify.show("Expression import failed", String(error?.message || error)); }
+    });
+    saved.on("change", async () => {
+      const preset = presets[Number(saved.getValue())];
+      if (!preset) return;
+      name.val(preset.name);
+      for (const [field, select] of Object.entries(controls)) select.val(String(preset.assets[field]));
+      await apply(preset.assets);
+      status.text("Applied " + preset.name + ".");
+    });
+    panel.appendMany(
+      title, note,
+      new Html("div").text("Save / load").style({ "font-weight": "700" }),
+      name, button("＋ Save expression", save), saved,
+      button("👁 Apply expression to Mii", () => apply(values())),
+      button("📤 Export PJ Expression .dat", exportCustom),
+      button("📥 Import PJ Expression .dat", () => importInput.elm.click()),
+      button("🧬 Export Nintendo Mii CharInfo .dat", exportMii),
+      importInput, status,
+      button("Restore original face", () => apply(original)),
+      button("Close", () => {
+        panel.cleanup();
+        this.ui.expressionCreatorPanel = null;
+        apply(original);
+      }),
+    );
+    this.ui.mii.append(panel);
+    this.ui.expressionCreatorPanel = panel;
+    refresh();
   }
   openSecretVault() {
     if (this.ui.secretVaultPanel) {
