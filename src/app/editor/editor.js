@@ -1521,6 +1521,66 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         addButtonSounds(
           new Html("button").text(label).style({ width: "100%" }).on("click", callback),
         );
+    let keyframes = [],
+      rootScale = root.scale.clone(),
+      squashLabel = new Html("label").text("Squash / stretch: 100%"),
+      squashInput = new Html("input").attr({ type: "range", min: "70", max: "140", step: "1", value: "100" }).style({ width: "100%" }),
+      timelineLabel = new Html("div").text("Motion timeline · 0 keyframes"),
+      timelineInput = new Html("input").attr({ type: "range", min: "0", max: "1000", step: "1", value: "0" }).style({ width: "100%" }),
+      captureFrame = () => Object.fromEntries(Array.from(offsets.entries()).map(([name, value]) => [name, { ...value }])),
+      applyFrame = (frame) => {
+        for (let bone of bones) {
+          let value = frame?.[bone.name] || { x: 0, y: 0, z: 0 };
+          offsets.set(bone.name, { x: Number(value.x) || 0, y: Number(value.y) || 0, z: Number(value.z) || 0 });
+          applyBone(bone.name);
+        }
+        updateControls();
+      },
+      updateTimeline = () => {
+        timelineLabel.text("Motion timeline · " + keyframes.length + " keyframes");
+        timelineInput.attr({ max: String(Math.max(1000, (keyframes.length - 1) * 1000)) });
+      },
+      mirrorPose = () => {
+        let source = captureFrame(), mirrored = {};
+        for (let [name, value] of Object.entries(source)) {
+          let other = name
+            .replace(/Left/g, "__SIDE__").replace(/Right/g, "Left").replace(/__SIDE__/g, "Right")
+            .replace(/_L\b/g, "__SIDE__").replace(/_R\b/g, "_L").replace(/__SIDE__/g, "_R")
+            .replace(/\.L\b/g, "__SIDE__").replace(/\.R\b/g, ".L").replace(/__SIDE__/g, ".R");
+          mirrored[offsets.has(other) ? other : name] = { x: value.x, y: -value.y, z: -value.z };
+        }
+        applyFrame(mirrored);
+      },
+      sampleTimeline = (position) => {
+        if (!keyframes.length) return;
+        let framePosition = Math.max(0, Math.min(keyframes.length - 1, position)),
+          left = Math.floor(framePosition), right = Math.min(keyframes.length - 1, left + 1),
+          blend = framePosition - left, a = keyframes[left].pose, b = keyframes[right].pose, result = {};
+        for (let bone of bones) {
+          let av = a[bone.name] || { x: 0, y: 0, z: 0 }, bv = b[bone.name] || { x: 0, y: 0, z: 0 };
+          result[bone.name] = { x: av.x + (bv.x - av.x) * blend, y: av.y + (bv.y - av.y) * blend, z: av.z + (bv.z - av.z) * blend };
+        }
+        applyFrame(result);
+      },
+      addKeyframe = () => {
+        keyframes.push({ time: keyframes.length, pose: captureFrame() });
+        updateTimeline();
+        timelineInput.val(String((keyframes.length - 1) * 1000));
+      },
+      exportMotionClip = () => {
+        if (!keyframes.length) return Notify.show("Motion Timeline", "Add at least one keyframe first.");
+        let clip = { format: "ThePJsMiiCreator.MotionClip", version: 1, gender: this.mii.gender, bodyModel: scene.bodyModel, fps: 30, keyframes },
+          url = URL.createObjectURL(new Blob([JSON.stringify(clip, null, 2)], { type: "application/json" })),
+          link = document.createElement("a");
+        link.href = url; link.download = (this.mii.nickname.trim() || "Mii") + "-motion-clip.json";
+        document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+    squashInput.on("input", () => {
+      let amount = Number(squashInput.getValue()) / 100;
+      root.scale.set(rootScale.x / Math.sqrt(amount), rootScale.y * amount, rootScale.z / Math.sqrt(amount));
+      squashLabel.text("Squash / stretch: " + Math.round(amount * 100) + "%");
+    });
+    timelineInput.on("input", () => sampleTimeline(Number(timelineInput.getValue()) / 1000));
     for (let index = 0; index < bones.length; index++)
       new Html("option")
         .attr({ value: bones[index].name })
@@ -1546,18 +1606,24 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       makeButton("Load preset", loadPreset),
       makeButton("Import pose JSON", () => fileInput.elm.click()),
       makeButton(translate("Export pose JSON"), exportPose),
+      makeButton("🪞 Mirror pose", mirrorPose),
+      makeButton("➕ Add keyframe", addKeyframe),
+      makeButton("📤 Export motion clip", exportMotionClip),
+      makeButton("🧹 Clear timeline", () => { keyframes = []; updateTimeline(); timelineInput.val("0"); }),
       makeButton(translate("Close"), () => {
         for (let bone of bones) {
           bone.quaternion.copy(originals.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
           bone.updateMatrixWorld(!0);
         }
+        root.scale.copy(rootScale);
+        root.updateMatrixWorld(!0);
         panel.cleanup();
         this.ui.customPoseMakerPanel = null;
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls, fileInput);
+    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, squashLabel, squashInput, timelineLabel, timelineInput);
     if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
     panel.append(buttons);
     this.ui.mii.append(panel);
