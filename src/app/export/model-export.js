@@ -691,10 +691,17 @@ function exportMiiModel(e, t, r, animationName, i) {
       if (E === void 0) throw "Couldn't find head bone.";
       E.attach(v.headModel);
     } else ((v.miiGroup = v.headModel), (v.headModel.name = translate("%1 (Head)", t.nickname)));
-    if (e.main.type === 5) {
+    if (
+      e.main.type === 5 &&
+      !(e.main.exportMode === "pose" && e.main.pose.id.includes("t-pose"))
+    ) {
       let S = v.miiGroup,
         E = new d.AnimationMixer(S),
-        T = b.clips.get(animationName || "Pose.01") || b.clips.get("Pose.01"),
+        poseClipName =
+          e.main.exportMode === "pose"
+            ? "Pose." + e.main.pose.idNumerical.toString().padStart(2, "0")
+            : "Pose.01",
+        T = b.clips.get(poseClipName) || b.clips.get("Pose.01"),
         M = _k(T, "skl_root", "nw4f_root"),
         C = E.clipAction(M);
       if ((C.play(), (C.timeScale = 0), (C.time = 0), E.update(0), e.main.bodyModel)) {
