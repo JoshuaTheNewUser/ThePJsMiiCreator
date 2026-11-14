@@ -382,7 +382,10 @@ Can help in some programs (i.e. game engines).`),
       (() => {
         let F = animationClips ? Array.from(animationClips.keys()) : [];
         if (!F.length) F = ["Pose.01"];
-        return F.map((he) => ({ id: he, item: he }));
+        return [
+          ...F.map((he) => ({ id: he, item: he })),
+          { id: "__all__", item: translate("All animations (single GLB)") },
+        ];
       })(),
       (F) => {
         m.main.animation = F;
@@ -1140,10 +1143,15 @@ Please use a 3D software to flip the hair and forehead manually!`),
         (S) => {},
         {
           binary: !0,
-          animations:
-            animationName && b?.clips?.has(animationName)
-              ? [_k(b.clips.get(animationName), "skl_root", "nw4f_root", null, !0)]
-              : [],
+          animations: (() => {
+            let names =
+              animationName === "__all__"
+                ? Array.from(b?.clips?.keys() || [])
+                : [animationName];
+            return names
+              .filter((name) => name && b?.clips?.has(name))
+              .map((name) => _k(b.clips.get(name), "skl_root", "nw4f_root", null, !0));
+          })(),
         },
       ));
   });
