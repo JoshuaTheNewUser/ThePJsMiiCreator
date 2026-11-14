@@ -622,6 +622,8 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           bone.scale.copy(originalScales.get(bone.name));
           bone.updateMatrixWorld(!0);
         }
+        bellyInput.val("100");
+        bellyValue.text("100%");
         updateControls();
       },
       exportPose = () => {
