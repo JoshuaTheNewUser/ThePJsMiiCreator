@@ -89,7 +89,7 @@
     if(shape.uvs&&shape.uvs.length/2===vertexCount){const b=new Uint8Array(shape.uvs.length*4),v=new DataView(b.buffer);for(let i=0;i<shape.uvs.length;i++)v.setFloat32(i*4,shape.uvs[i],true);attributes.TEXCOORD_0=append(b,34962,5126,vertexCount,"VEC2");}
     if(shape.colors&&shape.colors.length/4===vertexCount)attributes.COLOR_0=append(shape.colors,34962,5121,vertexCount,"VEC4",null,null,true);
     const idx=shape.indices,ib=new Uint8Array(idx.length*2),iv=new DataView(ib.buffer);for(let i=0;i<idx.length;i++)iv.setUint16(i*2,idx[i],true);
-    const indices=append(ib,34963,5123,idx.length,"SCALAR",[Math.min(...idx)],[Math.max(...idx)]);
+    let minIndex=65535,maxIndex=0;for(let i=0;i<idx.length;i++){minIndex=Math.min(minIndex,idx[i]);maxIndex=Math.max(maxIndex,idx[i]);}const indices=append(ib,34963,5123,idx.length,"SCALAR",[minIndex],[maxIndex]);
     const json={asset:{version:"2.0",generator:"The PJs Mii Creator · FFL Resource Tools"},scene:0,scenes:[{nodes:[0]}],nodes:[{name,mesh:0}],meshes:[{primitives:[{attributes,indices,mode:4}]}],buffers:[{byteLength:offset}],bufferViews:views,accessors};
     const jsonBytes=utf8.encode(JSON.stringify(json)),jsonPadded=new Uint8Array(align4(jsonBytes.length));jsonPadded.fill(32);jsonPadded.set(jsonBytes);
     const bin=new Uint8Array(offset);let at=0;for(const c of chunks){bin.set(c,at);at+=c.length;}
