@@ -473,10 +473,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           });
           transformed = true;
         }
+        // Push the whole character toward a rounded, ball-like silhouette.
+        // Wider X/Z and a slightly compressed Y make the full model read as a sphere.
+        let sphereFactor = 1 + (amount - 1) * 1.45;
         root.scale.set(
-          originalScale.x * amount,
-          originalScale.y * Math.max(1.12, amount * 0.82),
-          originalScale.z * amount,
+          originalScale.x * sphereFactor,
+          originalScale.y * (1 + (sphereFactor - 1) * 0.88),
+          originalScale.z * sphereFactor,
         );
         root.updateMatrixWorld(!0);
         status.text("Form: Blueberry mode 🫐 (" + Math.round(amount * 100) + "%)");
@@ -637,8 +640,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           tick++;
           if (index >= 2) {
             applyTint();
-            let amount = 1 + Math.min(1, (index - 2 + tick / 50) / 2) * 0.55;
-            root.scale.set(originalScale.x * amount, originalScale.y * (1 + (amount - 1) * 0.82), originalScale.z * amount);
+            let progressAmount = Math.min(1, (index - 2 + tick / 50) / 2);
+            let sphereFactor = 1 + progressAmount * 1.05;
+            root.scale.set(
+              originalScale.x * sphereFactor,
+              originalScale.y * (1 + (sphereFactor - 1) * 0.88),
+              originalScale.z * sphereFactor,
+            );
             root.updateMatrixWorld(!0);
           }
           if (tick >= 50) {
