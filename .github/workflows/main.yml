@@ -1,0 +1,65 @@
+# Builds the site (tools/build-static.js) and publishes it to GitHub Pages.
+# One-time setup: repo Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [feature/animated-glb-export]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Turns Pages on if it isn't yet. If it can't, the deploy step below still works
+      # once Settings → Pages → Source is set to "GitHub Actions".
+      - uses: actions/configure-pages@v5
+        continue-on-error: true
+        with:
+          enablement: true
+
+      - name: Work out the site's base path
+        id: base
+        run: |
+          repo="${{ github.event.repository.name }}"
+          owner="${{ github.repository_owner }}"
+          if [ -n "${{ vars.PAGES_CNAME }}" ] || [ "${repo,,}" = "${owner,,}.github.io" ]; then
+            echo "path=" >> "$GITHUB_OUTPUT"      # served from the domain root
+          else
+            echo "path=/$repo" >> "$GITHUB_OUTPUT" # served from https://<user>.github.io/<repo>/
+          fi
+
+      - name: Build static site
+        run: node tools/build-static.js --out=dist-static
+        env:
+          BASE_PATH: ${{ steps.base.outputs.path }}
+          PAGES_CNAME: ${{ vars.PAGES_CNAME }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-static
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
