@@ -498,7 +498,8 @@ function exportMiiModel(e, t, r, animationName, i) {
     }
     let d = getTHREE(),
       h = getSharedRenderer();
-    if ((h.forceContextRestore(), e.main.type === 6)) {
+    if (h.getContext()?.isContextLost()) h.forceContextRestore();
+    if (e.main.type === 6) {
       let S = await Bb(t, getSharedRenderer(), e.main.expression, s),
         E = S.img,
         T = document.createElement("canvas");
