@@ -135,8 +135,18 @@ function installCreatorHub() {
       }],
       ["⚡ Reaction Test", () => {
         let area=show("Reaction Test","Wait until the panel turns green, then click as quickly as you can.");
-        let state="idle", started=0, target=action(area,"Start test",()=>{if(state!=="idle")return;state="waiting";target.textContent="Wait...";target.disabled=true;gameTimer=setTimeout(()=>{state="ready";started=performance.now();target.disabled=false;target.textContent="CLICK NOW!";target.style.background="#16a34a";},1200+Math.random()*2800);});
-        target.addEventListener("click",()=>{if(state==="waiting"){clearTimer();state="idle";target.disabled=false;target.textContent="Too soon! Try again";}else if(state==="ready"){let ms=Math.round(performance.now()-started);state="idle";target.textContent=ms+" ms · Try again";target.style.background="";if(ms<350)scores.reaction++;}});
+        let state="idle", started=0, target;
+        target=action(area,"Start test",()=>{
+          if(state==="idle"){
+            state="waiting";target.textContent="Wait...";target.disabled=true;
+            gameTimer=setTimeout(()=>{state="ready";started=performance.now();target.disabled=false;target.textContent="CLICK NOW!";target.style.background="#16a34a";},1200+Math.random()*2800);
+          } else if(state==="waiting"){
+            clearTimer();state="idle";target.disabled=false;target.textContent="Too soon! Try again";target.style.background="";
+          } else if(state==="ready"){
+            let ms=Math.round(performance.now()-started);state="idle";target.textContent=ms+" ms · Try again";target.style.background="";
+            if(ms<350)scores.reaction++;
+          }
+        });
       }],
       ["🎨 Color Mixer", () => {
         let area=show("Color Mixer","Mix an RGB color and copy its HEX value.");
