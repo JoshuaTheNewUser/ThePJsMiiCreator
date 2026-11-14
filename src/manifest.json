@@ -462,6 +462,10 @@
       "description": "Editor tab ids (TAB_FACE, TAB_HAIR, ...) and editor state."
     },
     {
+      "file": "app/mii/miianim-reader.js",
+      "description": "Native MIAN v2 animation file reader and curve evaluator."
+    },
+    {
       "file": "app/editor/editor.js",
       "description": "MiiEditor: the editor screen."
     },
