@@ -173,7 +173,10 @@ function installCreatorHub() {
         let stage=document.createElement("div");Object.assign(stage.style,{height:"245px",display:"grid",placeItems:"center",perspective:"700px",overflow:"hidden",borderRadius:"12px",background:"radial-gradient(circle at 50% 40%,#315b68,#101b2b)"});
         let object=document.createElement("div");Object.assign(object.style,{width:"112px",height:"112px",position:"relative",transformStyle:"preserve-3d",transform:"rotateX(-24deg) rotateY(35deg)",transition:"transform .18s"});
         let faces=[["front","translateZ(56px)"],["back","rotateY(180deg) translateZ(56px)"],["right","rotateY(90deg) translateZ(56px)"],["left","rotateY(-90deg) translateZ(56px)"],["top","rotateX(90deg) translateZ(56px)"],["bottom","rotateX(-90deg) translateZ(56px)"]];
-        faces.forEach(([name,transform],i)=>{let face=document.createElement("div");Object.assign(face.style,{position:"absolute",inset:"0",display:"grid",placeItems:"center",border:"2px solid #d9f5ff99",background:["#31b6a4dd","#257b9add","#3c9bd5dd","#206b82dd","#80d9c5dd","#16465edd"][i],backdropFilter:"blur(2px)",fontSize:"26px",fontWeight:"800",color:"white",transform});face.textContent=["PJ","912","★","◆","🎮","🍀"][i];object.appendChild(face);});
+        let cubeFaces=[];
+        faces.forEach(([name,transform],i)=>{let face=document.createElement("div");Object.assign(face.style,{position:"absolute",inset:"0",display:"grid",placeItems:"center",border:"2px solid #d9f5ff99",background:["#31b6a4dd","#257b9add","#3c9bd5dd","#206b82dd","#80d9c5dd","#16465edd"][i],backdropFilter:"blur(2px)",fontSize:"26px",fontWeight:"800",color:"white",transform});face.textContent=["PJ","912","★","◆","🎮","🍀"][i];cubeFaces.push(face);object.appendChild(face);});
+        let sphere=document.createElement("div");Object.assign(sphere.style,{position:"absolute",inset:"0",display:"none",borderRadius:"50%",background:"radial-gradient(circle at 32% 28%,#efffff,#59d7d0 28%,#147baf 68%,#082b50)",boxShadow:"inset -12px -14px 24px #001b3a99,0 0 28px #6af7ff99",transform:"translateZ(0)"});
+        object.appendChild(sphere);
         stage.appendChild(object);area.appendChild(stage);
         let rx=-24,ry=35,shape="cube";
         const redraw=()=>{object.style.transform="rotateX("+rx+"deg) rotateY("+ry+"deg)";};
@@ -183,9 +186,9 @@ function installCreatorHub() {
         action(controls,"Auto spin",()=>{let active=true;let stop=action(controls,"Stop spin",()=>{active=false;stop.remove();});const spin=()=>{if(!active)return;ry+=2;redraw();gameTimer=setTimeout(spin,35);};spin();});
         area.appendChild(controls);
         let shapeRow=document.createElement("div");Object.assign(shapeRow.style,{display:"flex",gap:"7px",flexWrap:"wrap",marginTop:"8px"});
-        action(shapeRow,"Cube",()=>{object.style.borderRadius="0";object.style.opacity="1";shape="cube";sayShape();});
-        action(shapeRow,"Soft cube",()=>{object.style.borderRadius="24px";object.style.opacity=".92";shape="soft cube";sayShape();});
-        action(shapeRow,"Hologram",()=>{object.style.borderRadius="50%";object.style.opacity=".72";object.style.filter="hue-rotate(80deg)";shape="hologram sphere";sayShape();});
+        action(shapeRow,"Cube",()=>{cubeFaces.forEach(face=>{face.style.display="grid";face.style.borderRadius="0";});sphere.style.display="none";object.style.width="112px";object.style.height="112px";object.style.filter="none";object.style.opacity="1";shape="cube";sayShape();});
+        action(shapeRow,"Soft cube",()=>{cubeFaces.forEach(face=>{face.style.display="grid";face.style.borderRadius="18px";});sphere.style.display="none";object.style.width="112px";object.style.height="112px";object.style.filter="none";object.style.opacity=".94";shape="soft cube";sayShape();});
+        action(shapeRow,"Hologram sphere",()=>{cubeFaces.forEach(face=>face.style.display="none");sphere.style.display="block";object.style.width="132px";object.style.height="132px";object.style.filter="hue-rotate(80deg)";object.style.opacity=".9";shape="hologram sphere";sayShape();});
         let shapeInfo=note(area,"Current object: cube");
         function sayShape(){shapeInfo.textContent="Current object: "+shape+". Rotate it to inspect the 3D effect.";}
         area.appendChild(shapeRow);
