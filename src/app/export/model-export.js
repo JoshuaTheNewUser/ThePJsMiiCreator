@@ -200,7 +200,7 @@ This message will only appear once this session.`),
         item: `<img width=96 height=96 src="${F.url}" title="${F.name}" style="margin:-10px;pointer-events:none">`,
       }))
       .filter((F) => F !== void 0),
-    animationClips = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips,
+    animationClips = getBodyModels().get(n)?.get(e.gender === 0 ? 0 : 1)?.clips,
     defaultAnimation = animationClips?.has("Finish")
       ? "Finish"
       : animationClips?.has("Pose.01")
