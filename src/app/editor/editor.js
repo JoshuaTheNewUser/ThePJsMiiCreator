@@ -1291,7 +1291,10 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       return;
     }
     root.traverse((object) => {
-      if (!skinnedMesh && object.isSkinnedMesh && object.skeleton) skinnedMesh = object;
+      if (object.isSkinnedMesh && object.skeleton &&
+          (!skinnedMesh || (object.geometry?.attributes?.position?.count || 0) > (skinnedMesh.geometry?.attributes?.position?.count || 0))) {
+        skinnedMesh = object;
+      }
     });
     let bones = skinnedMesh?.skeleton?.bones || [];
     if (bones.length === 0) {
@@ -1420,16 +1423,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           const i = index * 3, x = original[i], y = original[i + 1], z = original[i + 2];
           const side = z >= bellyVertexData.centerZ ? 1 : -1;
           const expansion = (amount - 1) * bellyVertexData.depth * profile[index];
-          // Expand both sides of the abdomen. Mii body assets do not all use the
-          // same forward-axis convention, so a one-sided +Z mask can be invisible.
+          const widthExpansion = (amount - 1) * bellyVertexData.width * profile[index] * 0.42;
+          // Expand around the abdomen on both horizontal axes. The body meshes
+          // use different forward-axis conventions, so avoid a one-sided mask.
           attribute.setXYZ(index,
-            x + Math.sign(x - bellyVertexData.centerX) * expansion * 0.22,
+            x + (x - bellyVertexData.centerX) * (amount - 1) * profile[index] * 0.55,
             y,
-            z + side * expansion);
+            z + side * expansion + Math.sign(z - bellyVertexData.centerZ || 1) * widthExpansion);
         }
         attribute.needsUpdate = true;
         bellyVertexData.geometry.computeVertexNormals();
         bellyVertexData.geometry.computeBoundingSphere();
+        if (bellyBone) applyBone(bellyBone.name);
         bellyValue.text(Math.round(amount * 100) + "% · abdomen only");
       },
       applyBone = (name) => {
@@ -1448,8 +1453,9 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         bone.quaternion.copy(base).multiply(delta);
         const move = translations.get(name) || { x: 0, y: 0, z: 0 }, size = boneScales.get(name) || { x: 1, y: 1, z: 1 };
         const position = basePositions.get(name), scale = originalScales.get(name);
+        const bellyFactor = bone === bellyBone ? 1 + (Number(bellyInput.getValue()) / 100 - 1) * 0.32 : 1;
         if (position) bone.position.set(position.x + move.x, position.y + move.y, position.z + move.z);
-        if (scale) bone.scale.set(scale.x * size.x, scale.y * size.y, scale.z * size.z);
+        if (scale) bone.scale.set(scale.x * size.x * bellyFactor, scale.y * size.y, scale.z * size.z * bellyFactor);
         bone.updateMatrixWorld(!0);
       },
       updateControls = () => {
@@ -1717,7 +1723,10 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         // No front/back gate: some body models face -Z, others +Z.
         profile[index] = verticalFalloff * horizontalFalloff;
       }
-      bellyVertexData = { geometry, attribute, original, profile, depth, centerX, centerZ };
+      bellyVertexData = {
+        geometry, attribute, original, profile, depth, centerX, centerZ,
+        width: Math.max(0.01, bounds.max.x - bounds.min.x),
+      };
     }
     const boneAliases = [
       ["skl_root", ["sklroot","root","bodyroot"]], ["hip", ["hip","hips","pelvis"]],
