@@ -59,6 +59,13 @@ function installMiiToolkitHub() {
         <button id="pj-mii-toolkit-export" type="button" disabled>Export converted file</button>
       </div>
       <div id="pj-mii-toolkit-status" aria-live="polite">Choose a supported Mii data file to inspect it.</div>
+      <h3>FFL.js Renderer Preview</h3>
+      <p>Runs the actual FFL.js Three.js renderer against files you select. The renderer bundle and loader are included with their AGPL-3.0 license; the matching WebAssembly binary is fetched from the upstream FFL.js release when initialized.</p>
+      <div class="pj-toolkit-row"><label>FFL resource <input id="pj-ffljs-resource" type="file" accept=".dat,.bin" style="max-width:190px"></label></div>
+      <div class="pj-toolkit-row"><label>Mii data <input id="pj-ffljs-mii" type="file" accept=".charinfo,.ffsd,.ffcd,.cfcd,.rsd,.rcd,.bin,.mii" style="max-width:190px"></label></div>
+      <div class="pj-toolkit-row"><button id="pj-ffljs-render" type="button">Initialize FFL.js + Render Mii</button><button id="pj-ffljs-clear" type="button">Clear preview</button></div>
+      <div id="pj-ffljs-preview" class="pj-toolkit-card" style="min-height:40px;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+      <div id="pj-ffljs-status" aria-live="polite" class="pj-toolkit-card">Select a compatible FFL resource archive and a Wii U / 3DS / Switch Mii data file.</div>
       <h3>MiiJS Extended Format Lab</h3>
       <p>Optional MiiJS 3.1.1 engine for broader Mii format detection, import, conversion, JSON export and QR image export. The engine is loaded online from jsDelivr only when you press Load MiiJS.</p>
       <div class="pj-toolkit-row">
@@ -103,6 +110,64 @@ function installMiiToolkitHub() {
   document.body.appendChild(overlay);
 
 
+
+
+  const ffljsResourceInput = overlay.querySelector("#pj-ffljs-resource");
+  const ffljsMiiInput = overlay.querySelector("#pj-ffljs-mii");
+  const ffljsRenderButton = overlay.querySelector("#pj-ffljs-render");
+  const ffljsClearButton = overlay.querySelector("#pj-ffljs-clear");
+  const ffljsPreview = overlay.querySelector("#pj-ffljs-preview");
+  const ffljsStatus = overlay.querySelector("#pj-ffljs-status");
+  let ffljsInstance = null, ffljsModel = null, ffljsRenderer = null, ffljsScene = null, ffljsCamera = null;
+  const ffljsLoadScript = (src, key) => new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-pj-ffljs="' + key + '"]');
+    if (existing) { if (existing.dataset.loaded === "yes") resolve(); else { existing.addEventListener("load", resolve, { once: true }); existing.addEventListener("error", reject, { once: true }); } return; }
+    const script = document.createElement("script"); script.src = src; script.async = true; script.dataset.pjFfljs = key;
+    script.onload = () => { script.dataset.loaded = "yes"; resolve(); }; script.onerror = () => reject(new Error("Could not load " + key));
+    document.head.appendChild(script);
+  });
+  const clearFfljsPreview = () => {
+    try { ffljsModel?.dispose?.(); } catch {}
+    try { ffljsInstance?.dispose?.(); } catch {}
+    ffljsModel = null; ffljsInstance = null;
+    if (ffljsRenderer) { ffljsRenderer.dispose(); ffljsRenderer.domElement.remove(); }
+    ffljsRenderer = null; ffljsScene = null; ffljsCamera = null;
+    ffljsPreview.textContent = "FFL.js preview cleared.";
+  };
+  ffljsClearButton.addEventListener("click", clearFfljsPreview);
+  ffljsRenderButton.addEventListener("click", async () => {
+    const resourceFile = ffljsResourceInput.files && ffljsResourceInput.files[0];
+    const miiFile = ffljsMiiInput.files && ffljsMiiInput.files[0];
+    if (!resourceFile || !miiFile) { ffljsStatus.textContent = "Choose both an FFL resource archive and a Mii data file."; return; }
+    ffljsRenderButton.disabled = true; ffljsStatus.textContent = "Loading FFL.js renderer…";
+    try {
+      clearFfljsPreview();
+      const three = typeof getTHREE === "function" ? getTHREE() : window.THREE;
+      if (!three) throw new Error("The app's Three.js namespace is unavailable.");
+      window.THREE = three;
+      const sourceRoot = new URL("../src/vendor/ffljs/", document.baseURI).href;
+      await ffljsLoadScript(sourceRoot + "ffl-emscripten.cjs", "emscripten");
+      await ffljsLoadScript(sourceRoot + "ffl.browser.js", "renderer");
+      if (!window.ModuleFFL || !window.FFLjs) throw new Error("FFL.js globals were not initialized.");
+      ffljsStatus.textContent = "Initializing WebAssembly and loading your FFL resource…";
+      const wasmUrl = "https://raw.githubusercontent.com/ariankordi/FFL.js/master/ffl-emscripten.wasm";
+      const module = await window.ModuleFFL({ locateFile: () => wasmUrl });
+      ffljsInstance = await window.FFLjs.FFL.initWithResource(new Uint8Array(await resourceFile.arrayBuffer()), module);
+      const data = new Uint8Array(await miiFile.arrayBuffer());
+      ffljsRenderer = new three.WebGLRenderer({ alpha: true, antialias: true });
+      ffljsRenderer.setPixelRatio(1); ffljsRenderer.setSize(300, 300);
+      ffljsScene = new three.Scene();
+      ffljsCamera = window.FFLjs.ModelIcon.getCamera();
+      ffljsModel = new window.FFLjs.CharModel(ffljsInstance, data, window.FFLjs.FFLCharModelDescDefault, window.FFLShaderMaterial, ffljsRenderer);
+      ffljsScene.add(ffljsModel.meshes);
+      ffljsPreview.appendChild(ffljsRenderer.domElement);
+      ffljsRenderer.render(ffljsScene, ffljsCamera);
+      ffljsStatus.textContent = "✓ FFL.js rendered " + miiFile.name + " using " + resourceFile.name + ".";
+    } catch (error) {
+      clearFfljsPreview();
+      ffljsStatus.textContent = "FFL.js render failed: " + (error && error.message ? error.message : String(error));
+    } finally { ffljsRenderButton.disabled = false; }
+  });
 
   const miijsLoadButton = overlay.querySelector("#pj-miijs-load");
   const miijsImportButton = overlay.querySelector("#pj-miijs-import");
