@@ -723,6 +723,36 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         }
       },
       fileInput = new Html("input").attr({ type: "file", accept: ".json,application/json" }).style({ display: "none" }),
+      savePreset = () => {
+        try {
+          let pose = {
+            format: "ThePJsMiiCreator.CustomPose",
+            version: 1,
+            bodyModel: scene.bodyModel,
+            gender: this.mii.gender,
+            bellySize: Number(bellyInput.getValue()),
+            bones: Object.fromEntries(
+              Array.from(offsets.entries()).filter(([, value]) => value.x || value.y || value.z),
+            ),
+          };
+          localStorage.setItem("thepjsmiicreator-pose-" + this.mii.gender, JSON.stringify(pose));
+          Notify.show(translate("Custom Pose Maker"), "Pose preset saved in this browser.");
+        } catch (error) {
+          Notify.show(translate("Save failed"), String(error?.message || error));
+        }
+      },
+      loadPreset = () => {
+        try {
+          let saved = localStorage.getItem("thepjsmiicreator-pose-" + this.mii.gender);
+          if (!saved) {
+            Notify.show(translate("Custom Pose Maker"), "No saved pose preset was found in this browser.");
+            return;
+          }
+          importPose(new Blob([saved], { type: "application/json" }));
+        } catch (error) {
+          Notify.show(translate("Load failed"), String(error?.message || error));
+        }
+      },
       makeButton = (label, callback) =>
         addButtonSounds(
           new Html("button").text(label).style({ width: "100%" }).on("click", callback),
@@ -748,6 +778,8 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     buttons.appendMany(
       makeButton(translate("Reset bone"), resetCurrent),
       makeButton(translate("Reset all"), resetAll),
+      makeButton("Save preset", savePreset),
+      makeButton("Load preset", loadPreset),
       makeButton("Import pose JSON", () => fileInput.elm.click()),
       makeButton(translate("Export pose JSON"), exportPose),
       makeButton(translate("Close"), () => {
