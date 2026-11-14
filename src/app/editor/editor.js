@@ -44,6 +44,9 @@ class MiiEditor {
     if (MiiEditor.getCurrentEditor() !== null) throw Error("Cannot make multiple instances of MiiEditor!");
     ((window.editor = this),
       (g9 = this),
+      (this.secretUnlocks = new Set()),
+      (this.secretKeyBuffer = []),
+      (this.secretClickCount = 0),
       (this.#e = i),
       (this.#t = n || 0),
       document.dispatchEvent(new CustomEvent("editor-launch")),
@@ -318,6 +321,46 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openCustomPoseMaker()),
       )),
+      (this.ui.secretVaultButton = addButtonSounds(
+        new Html("button")
+          .text("🔒 Secret Vault")
+          .style({
+            position: "absolute",
+            top: "4rem",
+            right: "1rem",
+            "z-index": "4",
+            display: "none",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openSecretVault()),
+      )),
+      (this.secretKeyHandler = (event) => {
+        if (event.target?.matches?.("input, textarea, select, [contenteditable='true']")) return;
+        let key = event.key.toLowerCase(),
+          sequence = ["arrowup", "arrowup", "arrowdown", "arrowdown", "arrowleft", "arrowright", "arrowleft", "arrowright", "b", "a"];
+        this.secretKeyBuffer.push(key);
+        this.secretKeyBuffer = this.secretKeyBuffer.slice(-sequence.length);
+        if (sequence.every((value, index) => this.secretKeyBuffer[index] === value)) {
+          this.unlockSecret("konami", "Konami Code", "You found the classic secret input! PJ mode unlocked.");
+          this.secretKeyBuffer = [];
+        }
+        if (key === "p") this.secretTypingBuffer = "p";
+        else if (this.secretTypingBuffer) {
+          this.secretTypingBuffer += key;
+          this.secretTypingBuffer = this.secretTypingBuffer.slice(-5);
+          if (this.secretTypingBuffer === "pj912") {
+            this.unlockSecret("pj912", "PJ912", "The creator signature. You found the hidden PJ code.");
+            this.secretTypingBuffer = "";
+          }
+        }
+      }),
+      document.addEventListener("keydown", this.secretKeyHandler),
+      this.ui.scene.getRendererElement().addEventListener("click", () => {
+        this.secretClickCount++;
+        if (this.secretClickCount === 7) {
+          this.unlockSecret("lucky-seven", "Lucky Seven", "Seven clicks on the Mii viewer. That's dedication.");
+        }
+      }),
       getSetting("shaderTypeN").then((e) => {
         ((this.#g = e),
           getSetting("bodyModelN").then((t) => {
@@ -685,6 +728,63 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     this.ui.customPoseMakerPanel = panel;
     updateControls();
   }
+  unlockSecret(id, title, message) {
+    if (this.secretUnlocks.has(id)) return;
+    this.secretUnlocks.add(id);
+    try {
+      localStorage.setItem("thepjsmiicreator-secrets", JSON.stringify([...this.secretUnlocks]));
+    } catch {}
+    if (this.ui?.secretVaultButton) {
+      this.ui.secretVaultButton.style({ display: "block" });
+      this.ui.secretVaultButton.text("🔓 Secret Vault (" + this.secretUnlocks.size + ")");
+    }
+    Notify.show("✨ " + title, message);
+  }
+  openSecretVault() {
+    if (this.ui.secretVaultPanel) {
+      this.ui.secretVaultPanel.cleanup();
+      this.ui.secretVaultPanel = null;
+      return;
+    }
+    let descriptions = {
+        konami: ["Konami Code", "Enter the classic up, up, down, down, left, right, left, right, B, A sequence."],
+        pj912: ["PJ912", "Type PJ912 anywhere in the editor (not inside a text field)."],
+        "lucky-seven": ["Lucky Seven", "Click the 3D Mii viewer seven times."],
+      },
+      panel = new Html("div").style({
+        position: "absolute",
+        top: "7rem",
+        right: "1rem",
+        width: "min(300px, calc(100vw - 2rem))",
+        padding: "14px",
+        display: "flex",
+        "flex-direction": "column",
+        gap: "9px",
+        color: "var(--text)",
+        background: "var(--container)",
+        border: "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "box-shadow": "0 8px 28px #0005",
+        "z-index": "6",
+      }),
+      heading = new Html("div").text("✨ Secret Vault").style({ "font-weight": "700" }),
+      close = addButtonSounds(new Html("button").text(translate("Close")).on("click", () => {
+        panel.cleanup();
+        this.ui.secretVaultPanel = null;
+      }));
+    panel.append(heading);
+    for (let [id, [title, hint]] of Object.entries(descriptions)) {
+      let unlocked = this.secretUnlocks.has(id);
+      panel.append(
+        new Html("div")
+          .text((unlocked ? "🔓 " + title : "🔒 ???") + (unlocked ? " — " + hint : " — undiscovered"))
+          .style({ "font-size": "0.9rem", opacity: unlocked ? "1" : "0.65" }),
+      );
+    }
+    panel.append(close);
+    this.ui.mii.append(panel);
+    this.ui.secretVaultPanel = panel;
+  }
   #g;
   get shaderType() {
     return this.#g;
@@ -921,6 +1021,9 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       this.ui.tabContent.classOff("disabled"));
   }
   async shutdown(e = !0, t = !0) {
+    if (this.secretKeyHandler) document.removeEventListener("keydown", this.secretKeyHandler);
+    if (this.ui?.secretVaultPanel) this.ui.secretVaultPanel.cleanup();
+    if (this.ui?.secretVaultButton) this.ui.secretVaultButton.cleanup();
     if ((document.removeEventListener("pointerdown", dG), this.#o)) this.#o();
     if (e) {
       if (Array.from(this.errors.values()).find((r) => r.valid === !1)) {
