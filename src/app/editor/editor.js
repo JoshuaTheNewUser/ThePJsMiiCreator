@@ -1579,14 +1579,13 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       },
       updateTimeline = () => {
         timelineLabel.text("Timeline · " + keyframes.length + " keyframes · " + timelineFps + " FPS");
-        timelineInput.attr({ max: String(Math.max(1000, (keyframes.length - 1) * 1000)) });
+        timelineInput.attr({ max: String(Math.max(1000, (keyframes.length ? keyframes[keyframes.length - 1].time : 1) * 1000)) });
         if (timelineRuler) {
           timelineRuler.elm.replaceChildren();
-          const total = Math.max(1, keyframes.length);
-          for (let index = 0; index < total; index++) {
-            const marker = new Html("button").text("◆").attr({ type: "button", title: "Go to frame " + (index + 1) })
+          for (const item of keyframes) {
+            const marker = new Html("button").text("◆").attr({ type: "button", title: "Go to frame " + (item.time + 1) })
               .style({ flex: "0 0 28px", minWidth: "28px", padding: "4px", color: "#f5c542", background: "transparent", border: "0", cursor: "pointer" })
-              .on("click", () => { timelineInput.val(String(index * 1000)); sampleTimeline(index); updateTimelineReadout(); });
+              .on("click", () => { timelineInput.val(String(item.time * 1000)); sampleTimeline(item.time); updateTimelineReadout(); });
             timelineRuler.append(marker);
           }
           if (!keyframes.length) timelineRuler.append(new Html("span").text("No keyframes yet — add one to begin.").style({ opacity: "0.7", "font-size": "0.8rem" }));
@@ -1609,9 +1608,17 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       },
       sampleTimeline = (position) => {
         if (!keyframes.length) return;
-        let framePosition = Math.max(0, Math.min(keyframes.length - 1, position)),
-          left = Math.floor(framePosition), right = Math.min(keyframes.length - 1, left + 1),
-          blend = framePosition - left, a = keyframes[left].pose, b = keyframes[right].pose, result = {};
+        const first = keyframes[0].time, last = keyframes[keyframes.length - 1].time;
+        const framePosition = Math.max(first, Math.min(last, position));
+        let left = 0, right = keyframes.length - 1;
+        for (let index = 0; index < keyframes.length - 1; index++) {
+          if (keyframes[index].time <= framePosition && keyframes[index + 1].time >= framePosition) { left = index; right = index + 1; break; }
+        }
+        if (framePosition <= first) right = left = 0;
+        if (framePosition >= last) left = right = keyframes.length - 1;
+        const span = keyframes[right].time - keyframes[left].time;
+        const blend = span > 0 ? (framePosition - keyframes[left].time) / span : 0;
+        const a = keyframes[left].pose, b = keyframes[right].pose, result = {};
         for (let bone of bones) {
           let av = a[bone.name] || { rotation: { x: 0, y: 0, z: 0 }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
           let bv = b[bone.name] || { rotation: { x: 0, y: 0, z: 0 }, position: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } };
@@ -1886,12 +1893,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       makeButton("Import pose JSON", () => fileInput.elm.click()),
       makeButton(translate("Export pose JSON"), exportPose),
       makeButton("🪞 Mirror pose", mirrorPose),
-      makeButton("➕ Add keyframe", addKeyframe),
-      makeButton("📤 Export motion clip", exportMotionClip),
-      makeButton("🎞 Import .miianim", () => miianimInput.elm.click()),
-      makeButton("▶ Play imported clip", playImportedClip),
-      makeButton("■ Stop imported clip", () => { stopImportedClip(false); animationStatus.text(importedAnimation ? "Clip loaded: " + importedAnimation.name : "No .miianim clip loaded."); }),
-      makeButton("🧹 Clear timeline", () => { keyframes = []; updateTimeline(); timelineInput.val("0"); }),
+      makeButton("🎭 Expression Creator", () => this.openExpressionCreator()),
       makeButton(translate("Close"), () => {
         stopImportedClip(false);
         importedAnimation = null;
@@ -1920,12 +1922,43 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     const transformControls = new Html("div").style({ display: "grid", "grid-template-columns": "1fr 1fr", gap: "7px", padding: "8px", border: "1px solid var(--stroke)", "border-radius": "8px" });
     transformControls.append(new Html("div").text("↔ Move bone (local units)").style({ "font-weight": "700", "grid-column": "1 / -1" }), moveX.wrap, moveY.wrap, moveZ.wrap,
       new Html("div").text("⤢ Resize bone").style({ "font-weight": "700", "grid-column": "1 / -1" }), scaleX.wrap, scaleY.wrap, scaleZ.wrap);
-    panel.appendMany(heading, help, boneSelect, axisControls, transformControls, fileInput, miianimInput, animationStatus, ikPanel, squashLabel, squashInput, timelineLabel, timelineInput);
-    if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
-    panel.append(buttons);
+    const tabBar = new Html("div").style({ display: "grid", "grid-template-columns": "1fr 1fr", gap: "6px", padding: "4px", background: "var(--background)", border: "1px solid var(--stroke)", "border-radius": "9px" });
+    const boneTab = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "9px" });
+    const timelineTab = new Html("div").style({ display: "none", "flex-direction": "column", gap: "9px" });
+    const setPoseTab = (active) => {
+      const isTimeline = active === "timeline";
+      boneTab.style({ display: isTimeline ? "none" : "flex" });
+      timelineTab.style({ display: isTimeline ? "flex" : "none" });
+      poseTabButton.classOff("primary"); timelineTabButton.classOff("primary");
+      (isTimeline ? timelineTabButton : poseTabButton).classOn("primary");
+    };
+    const poseTabButton = makeButton("🦴 Pose & Bones", () => setPoseTab("pose"));
+    const timelineTabButton = makeButton("🎞 Timeline", () => setPoseTab("timeline"));
+    tabBar.appendMany(poseTabButton, timelineTabButton);
+    boneTab.appendMany(boneSelect, axisControls, transformControls, fileInput, ikPanel, squashLabel, squashInput);
+    if (bellyBone) boneTab.appendMany(bellyLabel, bellyInput);
+    boneTab.append(buttons);
+    const timelineButtons = new Html("div").style({ display: "grid", "grid-template-columns": "1fr 1fr", gap: "7px" });
+    timelineButtons.appendMany(
+      makeButton("＋ Add keyframe", addKeyframe),
+      makeButton("− Delete nearest keyframe", deleteTimelineKeyframe),
+      makeButton("▶ Play timeline", playPoseTimeline),
+      makeButton("■ Stop timeline", stopPoseTimeline),
+      makeButton("📤 Export motion clip", exportMotionClip),
+      makeButton("🧹 Clear timeline", () => { stopPoseTimeline(); keyframes = []; updateTimeline(); timelineInput.val("0"); updateTimelineReadout(); }),
+      makeButton("🎞 Import .miianim", () => miianimInput.elm.click()),
+      makeButton("▶ Play imported clip", playImportedClip),
+      makeButton("■ Stop imported clip", () => { stopImportedClip(false); animationStatus.text(importedAnimation ? "Clip loaded: " + importedAnimation.name : "No .miianim clip loaded."); }),
+    );
+    timelineTab.appendMany(
+      new Html("div").text("Animation Timeline").style({ "font-weight": "700", "font-size": "1rem" }),
+      new Html("div").text("Blender-style keyframe workflow · 30 FPS · drag the playhead or select a diamond to scrub."),
+      timelineLabel, timelineFrameLabel, timelineRuler, timelineInput, timelineButtons, miianimInput, animationStatus,
+    );
+    panel.appendMany(heading, help, tabBar, boneTab, timelineTab);
     this.ui.mii.append(panel);
     this.ui.customPoseMakerPanel = panel;
-    updateControls();
+    updateControls(); updateTimeline(); updateTimelineReadout();
   }
   unlockSecret(id, title, message) {
     if (this.secretUnlocks.has(id)) return;
