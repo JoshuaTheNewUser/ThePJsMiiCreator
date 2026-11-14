@@ -738,7 +738,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         buildControl.input.val(String(this.mii.build));
         heightControl.caption.text("Height: " + this.mii.height + "/" + max);
         buildControl.caption.text("Build: " + this.mii.build + "/" + max);
-        this.render(!0, 0, 1);
+        this.render(!0, 0, 1).then(() => rebindShapeRig()).catch(() => {});
       },
       setPreset = (height, build) => {
         this.mii.height = Math.max(0, Math.min(max, height));
@@ -792,6 +792,21 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         shapeSelect.val(id);
         shapeInput.val(String(amount));
         shapeLabel.text("Shape intensity: " + amount + "%");
+      },
+      rebindShapeRig = () => {
+        body = this.ui.scene?.bodyModels?.get(this.mii.gender);
+        root = body?.model?.scene;
+        if (!root) return;
+        originalRootScale = root.scale.clone();
+        bones = [];
+        shapeBones = [];
+        root.traverse((object) => {
+          if (!object.isBone) return;
+          bones.push(object);
+          if (/spine|torso|chest|abdomen|waist|hip|pelvis/i.test(object.name))
+            shapeBones.push({ bone: object, base: object.scale.clone() });
+        });
+        setShape(selectedShape, intensity);
       },
       captureProfile = () => ({
         format: "ThePJsMiiCreator.BodyStudio",
