@@ -1579,7 +1579,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       },
       updateTimeline = () => {
         timelineLabel.text("Timeline · " + keyframes.length + " keyframes · " + timelineFps + " FPS");
-        timelineInput.attr({ max: String(Math.max(1000, (keyframes.length ? keyframes[keyframes.length - 1].time : 1) * 1000)) });
+        timelineInput.attr({ max: String(Math.max(10000, (keyframes.length ? keyframes[keyframes.length - 1].time + 10 : 10) * 1000)) });
         if (timelineRuler) {
           timelineRuler.elm.replaceChildren();
           for (const item of keyframes) {
@@ -1893,8 +1893,8 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       makeButton("Import pose JSON", () => fileInput.elm.click()),
       makeButton(translate("Export pose JSON"), exportPose),
       makeButton("🪞 Mirror pose", mirrorPose),
-      makeButton("🎭 Expression Creator", () => this.openExpressionCreator()),
       makeButton(translate("Close"), () => {
+        stopPoseTimeline();
         stopImportedClip(false);
         importedAnimation = null;
         for (let bone of bones) {
