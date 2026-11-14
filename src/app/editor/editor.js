@@ -681,6 +681,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           version: 1,
           bodyModel: scene.bodyModel,
           gender: this.mii.gender,
+          bellySize: Number(bellyInput.getValue()),
           bones: Object.fromEntries(
             Array.from(offsets.entries()).filter(([, value]) => value.x || value.y || value.z),
           ),
@@ -695,6 +696,33 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       },
+      importPose = async (file) => {
+        try {
+          let pose = JSON.parse(await file.text());
+          if (pose?.format !== "ThePJsMiiCreator.CustomPose" || !pose.bones || typeof pose.bones !== "object")
+            throw new Error("This file is not a supported Custom Pose JSON.");
+          resetAll();
+          for (let [name, value] of Object.entries(pose.bones)) {
+            if (!offsets.has(name) || !value || !["x", "y", "z"].every((axis) => Number.isFinite(Number(value[axis] ?? 0))))
+              continue;
+            offsets.set(name, {
+              x: Math.max(-180, Math.min(180, Number(value.x) || 0)),
+              y: Math.max(-180, Math.min(180, Number(value.y) || 0)),
+              z: Math.max(-180, Math.min(180, Number(value.z) || 0)),
+            });
+            applyBone(name);
+          }
+          if (bellyBone && Number.isFinite(Number(pose.bellySize))) {
+            bellyInput.val(String(Math.max(75, Math.min(150, Number(pose.bellySize)))));
+            applyBelly();
+          }
+          updateControls();
+          Notify.show(translate("Custom Pose Maker"), "Pose imported successfully.");
+        } catch (error) {
+          Notify.show(translate("Import failed"), String(error?.message || error));
+        }
+      },
+      fileInput = new Html("input").attr({ type: "file", accept: ".json,application/json" }).style({ display: "none" }),
       makeButton = (label, callback) =>
         addButtonSounds(
           new Html("button").text(label).style({ width: "100%" }).on("click", callback),
@@ -705,6 +733,11 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         .text(bones[index].name || "Bone " + index)
         .appendTo(boneSelect);
     boneSelect.on("change", updateControls);
+    fileInput.on("change", () => {
+      let file = fileInput.elm.files?.[0];
+      if (file) importPose(file);
+      fileInput.elm.value = "";
+    });
     bellyLabel.appendMany(new Html("span").text(translate("Belly size")), bellyValue);
     bellyInput.on("input", applyBelly);
     let buttons = new Html("div").style({
@@ -715,6 +748,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     buttons.appendMany(
       makeButton(translate("Reset bone"), resetCurrent),
       makeButton(translate("Reset all"), resetAll),
+      makeButton("Import pose JSON", () => fileInput.elm.click()),
       makeButton(translate("Export pose JSON"), exportPose),
       makeButton(translate("Close"), () => {
         for (let bone of bones) {
@@ -727,7 +761,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls);
+    panel.appendMany(heading, help, boneSelect, axisControls, fileInput);
     if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
     panel.append(buttons);
     this.ui.mii.append(panel);
