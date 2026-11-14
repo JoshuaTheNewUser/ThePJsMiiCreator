@@ -1142,7 +1142,7 @@ Please use a 3D software to flip the hair and forehead manually!`),
           binary: !0,
           animations:
             animationName && b?.clips?.has(animationName)
-              ? [_k(b.clips.get(animationName), "skl_root", "nw4f_root")]
+              ? [_k(b.clips.get(animationName), "skl_root", "nw4f_root", null, !0)]
               : [],
         },
       ));
@@ -1352,7 +1352,7 @@ function P3(e, t, r) {
     (e.setTranslation([0, 0, 0]), e.setRotation([0, 0, 0, 1]), e.setScale([1, 1, 1]));
   }
 }
-function _k(e, t = "skl_root", r = "nw4f_root", n = null) {
+function _k(e, t = "skl_root", r = "nw4f_root", n = null, preservePositions = !1) {
   let i = getTHREE();
   if (n == null) n = new i.Vector3();
   let o = [];
@@ -1362,7 +1362,7 @@ function _k(e, t = "skl_root", r = "nw4f_root", n = null) {
       c = a[1],
       u = l.toLowerCase() === t.toLowerCase() || l.toLowerCase() === r.toLowerCase();
     if (c === "scale") continue;
-    if (c === "position" || (u && (c === "position" || c === "quaternion"))) continue;
+    if ((!preservePositions && c === "position") || (u && (c === "position" || c === "quaternion"))) continue;
     o.push(s.clone());
   }
   return new i.AnimationClip(e.name + "_Baked", e.duration, o);
