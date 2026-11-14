@@ -1408,13 +1408,22 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         step: "1",
         value: "100",
       }).style({ width: "100%" }),
+      bellyVertexData = null,
       applyBelly = () => {
-        if (!bellyBone) return;
-        let amount = Number(bellyInput.getValue()) / 100,
-          base = originalScales.get(bellyBone.name);
-        bellyBone.scale.set(base.x * amount, base.y, base.z * amount);
-        bellyBone.updateMatrixWorld(!0);
-        bellyValue.text(Math.round(amount * 100) + "%");
+        if (!bellyVertexData) {
+          bellyValue.text("Unavailable for this body model");
+          return;
+        }
+        const amount = Number(bellyInput.getValue()) / 100;
+        const attribute = bellyVertexData.attribute, original = bellyVertexData.original, profile = bellyVertexData.profile;
+        for (let index = 0; index < profile.length; index++) {
+          attribute.setXYZ(index, original[index * 3], original[index * 3 + 1],
+            original[index * 3 + 2] + (amount - 1) * bellyVertexData.depth * profile[index]);
+        }
+        attribute.needsUpdate = true;
+        bellyVertexData.geometry.computeVertexNormals();
+        bellyVertexData.geometry.computeBoundingSphere();
+        bellyValue.text(Math.round(amount * 100) + "% · abdomen only");
       },
       applyBone = (name) => {
         let bone = bones.find((item) => item.name === name),
@@ -1463,7 +1472,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           bone.updateMatrixWorld(!0);
         }
         bellyInput.val("100");
-        bellyValue.text("100%");
+        applyBelly();
         updateControls();
       },
       exportPose = () => {
@@ -1569,8 +1578,19 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         updateControls();
       },
       updateTimeline = () => {
-        timelineLabel.text("Motion timeline · " + keyframes.length + " keyframes");
+        timelineLabel.text("Timeline · " + keyframes.length + " keyframes · " + timelineFps + " FPS");
         timelineInput.attr({ max: String(Math.max(1000, (keyframes.length - 1) * 1000)) });
+        if (timelineRuler) {
+          timelineRuler.elm.replaceChildren();
+          const total = Math.max(1, keyframes.length);
+          for (let index = 0; index < total; index++) {
+            const marker = new Html("button").text("◆").attr({ type: "button", title: "Go to frame " + (index + 1) })
+              .style({ flex: "0 0 28px", minWidth: "28px", padding: "4px", color: "#f5c542", background: "transparent", border: "0", cursor: "pointer" })
+              .on("click", () => { timelineInput.val(String(index * 1000)); sampleTimeline(index); updateTimelineReadout(); });
+            timelineRuler.append(marker);
+          }
+          if (!keyframes.length) timelineRuler.append(new Html("span").text("No keyframes yet — add one to begin.").style({ opacity: "0.7", "font-size": "0.8rem" }));
+        }
       },
       mirrorPose = () => {
         let source = captureFrame(), mirrored = {};
@@ -1605,9 +1625,15 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         applyFrame(result);
       },
       addKeyframe = () => {
-        keyframes.push({ time: keyframes.length, pose: captureFrame() });
+        const frame = Math.max(0, Math.round(Number(timelineInput.getValue()) / 1000));
+        const existing = keyframes.findIndex((item) => item.time === frame);
+        if (existing >= 0) keyframes[existing].pose = captureFrame();
+        else keyframes.push({ time: frame, pose: captureFrame() });
+        keyframes.sort((a, b) => a.time - b.time);
         updateTimeline();
-        timelineInput.val(String((keyframes.length - 1) * 1000));
+        timelineInput.val(String(frame * 1000));
+        sampleTimeline(frame);
+        updateTimelineReadout();
       },
       exportMotionClip = () => {
         if (!keyframes.length) return Notify.show("Motion Timeline", "Add at least one keyframe first.");
@@ -1619,7 +1645,66 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       };
 
     let importedAnimation = null, importedAnimationRaf = 0, importedAnimationStart = 0;
+    let poseTimelineRaf = 0, poseTimelineStart = 0, poseTimelineStartFrame = 0;
+    const timelineFps = 30;
+    const timelineFrameLabel = new Html("div").text("Frame 1 · 00:00").style({ "font-size": "0.82rem", "font-variant-numeric": "tabular-nums" });
+    const timelineRuler = new Html("div").style({ display: "flex", gap: "4px", "align-items": "center", "min-height": "34px", padding: "6px", overflowX: "auto", background: "var(--background)", border: "1px solid var(--stroke)", "border-radius": "7px" });
+    const updateTimelineReadout = () => {
+      const frame = Math.max(0, Number(timelineInput.getValue()) / 1000);
+      timelineFrameLabel.text("Frame " + (Math.floor(frame) + 1) + " · " + (frame / timelineFps).toFixed(2) + "s");
+    };
+    const stopPoseTimeline = () => { if (poseTimelineRaf) cancelAnimationFrame(poseTimelineRaf); poseTimelineRaf = 0; };
+    const playPoseTimeline = () => {
+      if (keyframes.length < 2) return Notify.show("Timeline", "Add at least two keyframes to play an animation.");
+      stopPoseTimeline();
+      poseTimelineStartFrame = Number(timelineInput.getValue()) / 1000;
+      poseTimelineStart = performance.now();
+      const endFrame = keyframes[keyframes.length - 1].time;
+      const tick = (now) => {
+        const frame = poseTimelineStartFrame + (now - poseTimelineStart) / 1000 * timelineFps;
+        if (frame >= endFrame) {
+          timelineInput.val(String(endFrame * 1000)); sampleTimeline(endFrame); updateTimelineReadout(); stopPoseTimeline(); return;
+        }
+        timelineInput.val(String(frame * 1000)); sampleTimeline(frame); updateTimelineReadout();
+        poseTimelineRaf = requestAnimationFrame(tick);
+      };
+      poseTimelineRaf = requestAnimationFrame(tick);
+    };
+    const deleteTimelineKeyframe = () => {
+      if (!keyframes.length) return;
+      const frame = Math.round(Number(timelineInput.getValue()) / 1000);
+      let index = keyframes.reduce((best, item, i) => Math.abs(item.time - frame) < Math.abs(keyframes[best].time - frame) ? i : best, 0);
+      keyframes.splice(index, 1);
+      keyframes.forEach((item, i) => item.time = i);
+      updateTimeline(); timelineInput.val(String(Math.min(frame, Math.max(0, keyframes.length - 1)) * 1000));
+      if (keyframes.length) sampleTimeline(Number(timelineInput.getValue()) / 1000);
+      updateTimelineReadout();
+    };
     const basePositions = new Map(bones.map((bone) => [bone.name, bone.position.clone()]));
+    if (bellyBone && skinnedMesh?.geometry?.attributes?.position) {
+      // Clone first: the cached source body model must not be permanently modified.
+      skinnedMesh.geometry = skinnedMesh.geometry.clone();
+      const geometry = skinnedMesh.geometry, attribute = geometry.attributes.position;
+      geometry.computeBoundingBox();
+      const bounds = geometry.boundingBox, height = Math.max(0.001, bounds.max.y - bounds.min.y);
+      const centerX = (bounds.min.x + bounds.max.x) / 2;
+      const centerY = bounds.min.y + height * 0.59;
+      const centerZ = (bounds.min.z + bounds.max.z) / 2;
+      const radiusX = Math.max(0.001, (bounds.max.x - bounds.min.x) * 0.31);
+      const radiusY = height * 0.145;
+      const depth = Math.max(0.01, (bounds.max.z - bounds.min.z) * 0.24);
+      const original = Array.from(attribute.array);
+      const profile = new Float32Array(attribute.count);
+      for (let index = 0; index < attribute.count; index++) {
+        const x = attribute.getX(index), y = attribute.getY(index), z = attribute.getZ(index);
+        const vertical = (y - centerY) / radiusY, horizontal = (x - centerX) / radiusX;
+        const front = Math.max(0, Math.min(1, (z - centerZ) / Math.max(0.001, bounds.max.z - centerZ)));
+        const verticalFalloff = Math.exp(-0.5 * vertical * vertical);
+        const horizontalFalloff = Math.exp(-0.5 * horizontal * horizontal);
+        profile[index] = verticalFalloff * horizontalFalloff * front;
+      }
+      bellyVertexData = { geometry, attribute, original, profile, depth };
+    }
     const boneAliases = [
       ["skl_root", ["sklroot","root","bodyroot"]], ["hip", ["hip","hips","pelvis"]],
       ["chest", ["chest","spine","torso"]], ["head", ["head","neckhead"]],
@@ -1774,7 +1859,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       root.scale.set(rootScale.x / Math.sqrt(amount), rootScale.y * amount, rootScale.z / Math.sqrt(amount));
       squashLabel.text("Squash / stretch: " + Math.round(amount * 100) + "%");
     });
-    timelineInput.on("input", () => sampleTimeline(Number(timelineInput.getValue()) / 1000));
+    timelineInput.on("input", () => { stopPoseTimeline(); sampleTimeline(Number(timelineInput.getValue()) / 1000); updateTimelineReadout(); });
     for (let index = 0; index < bones.length; index++)
       new Html("option")
         .attr({ value: bones[index].name })
@@ -1817,6 +1902,15 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           bone.updateMatrixWorld(!0);
         }
         root.scale.copy(rootScale);
+        if (bellyVertexData) {
+          for (let index = 0; index < bellyVertexData.profile.length; index++) {
+            const i = index * 3, a = bellyVertexData.attribute;
+            a.setXYZ(index, bellyVertexData.original[i], bellyVertexData.original[i + 1], bellyVertexData.original[i + 2]);
+          }
+          bellyVertexData.attribute.needsUpdate = true;
+          bellyVertexData.geometry.computeVertexNormals();
+          bellyVertexData.geometry.computeBoundingSphere();
+        }
         root.updateMatrixWorld(!0);
         panel.cleanup();
         this.ui.customPoseMakerPanel = null;
