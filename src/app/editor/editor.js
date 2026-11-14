@@ -1600,6 +1600,59 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       const names = boneAliases[index]?.[1] || [];
       return bones.find((bone) => names.includes(normalizeBoneName(bone.name)))?.name || null;
     };
+
+    const ikLimbDefinitions = [
+      { label: "Left arm", upper: 4, lower: 5, end: 6 },
+      { label: "Right arm", upper: 7, lower: 8, end: 9 },
+      { label: "Left leg", upper: 10, lower: 11, end: 12 },
+      { label: "Right leg", upper: 13, lower: 14, end: 15 }
+    ];
+    const ikBaseTargets = new Map();
+    root.updateMatrixWorld(!0);
+    for (let limb of ikLimbDefinitions) {
+      const endName = findClipBone(limb.end), endBone = bones.find((bone) => bone.name === endName);
+      if (endBone) { const point = new THREE.Vector3(); endBone.getWorldPosition(point); ikBaseTargets.set(limb.label, point); }
+    }
+    const ikSelect = new Html("select").style({ width: "100%", padding: "7px", "border-radius": "8px", background: "var(--background)", color: "var(--text)" });
+    for (let limb of ikLimbDefinitions) new Html("option").attr({ value: limb.label }).text(limb.label).appendTo(ikSelect);
+    const makeIkAxis = (label, min, max) => {
+      const wrap = new Html("label").style({ display: "flex", "flex-direction": "column", gap: "3px", "font-size": "0.82rem" });
+      const title = new Html("span").text(label + ": 0");
+      const input = new Html("input").attr({ type: "range", min: String(min), max: String(max), step: "1", value: "0" }).style({ width: "100%" });
+      wrap.appendMany(title, input);
+      return { wrap, title, input };
+    };
+    const ikX = makeIkAxis("Target X", -80, 80), ikY = makeIkAxis("Target Y", -80, 80), ikZ = makeIkAxis("Target Z", -80, 80), ikSwivel = makeIkAxis("Elbow / knee swivel", -180, 180);
+    const ikStatus = new Html("div").text("Choose a limb and move its target sliders to solve a two-bone IK pose.").style({ "font-size": "0.78rem", opacity: "0.85", "white-space": "pre-wrap" });
+    const applyIkTarget = () => {
+      try {
+        const limb = ikLimbDefinitions.find((item) => item.label === ikSelect.getValue()) || ikLimbDefinitions[0];
+        const upperName = findClipBone(limb.upper), lowerName = findClipBone(limb.lower), endName = findClipBone(limb.end);
+        const upper = bones.find((bone) => bone.name === upperName), lower = bones.find((bone) => bone.name === lowerName), end = bones.find((bone) => bone.name === endName);
+        const baseTarget = ikBaseTargets.get(limb.label);
+        if (!upper || !lower || !end || !baseTarget) throw new Error("This body model does not expose the complete " + limb.label.toLowerCase() + " bone chain.");
+        applyBone(upper.name); applyBone(lower.name); root.updateMatrixWorld(!0);
+        const target = baseTarget.clone().add(new THREE.Vector3(Number(ikX.input.getValue()), Number(ikY.input.getValue()), Number(ikZ.input.getValue())));
+        const result = window.PJMiiIK.solveTwoBoneIK(THREE, root, upper, lower, end, target, Number(ikSwivel.input.getValue()), 150);
+        ikStatus.text((result.clamped ? "Target clamped to reachable range. " : "Target reachable. ") + "End error: " + result.error.toFixed(2) + " units.");
+      } catch (error) { ikStatus.text("IK unavailable: " + String(error?.message || error)); }
+    };
+    for (const control of [ikX, ikY, ikZ, ikSwivel]) control.input.on("input", () => {
+      control.title.text(control.title.elm.textContent.split(":")[0] + ": " + control.input.getValue());
+      applyIkTarget();
+    });
+    ikSelect.on("change", () => {
+      for (const control of [ikX, ikY, ikZ, ikSwivel]) control.input.val("0");
+      for (const control of [ikX, ikY, ikZ, ikSwivel]) control.title.text(control.title.elm.textContent.split(":")[0] + ": 0");
+      applyIkTarget();
+    });
+    const ikPanel = new Html("div").style({ display: "flex", "flex-direction": "column", gap: "6px", padding: "9px", border: "1px solid var(--stroke)", "border-radius": "9px" });
+    ikPanel.appendMany(new Html("div").text("🦴 Two-bone IK · MiiPy-inspired").style({ "font-weight": "700" }), ikSelect, ikX.wrap, ikY.wrap, ikZ.wrap, ikSwivel.wrap, ikStatus,
+      makeButton("Reset IK target", () => {
+        for (const control of [ikX, ikY, ikZ, ikSwivel]) { control.input.val("0"); control.title.text(control.title.elm.textContent.split(":")[0] + ": 0"); }
+        applyIkTarget();
+      }));
+
     const stopImportedClip = (restore = false) => {
       if (importedAnimationRaf) cancelAnimationFrame(importedAnimationRaf);
       importedAnimationRaf = 0;
@@ -1727,7 +1780,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       }),
     );
     axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
-    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, miianimInput, animationStatus, squashLabel, squashInput, timelineLabel, timelineInput);
+    panel.appendMany(heading, help, boneSelect, axisControls, fileInput, miianimInput, animationStatus, ikPanel, squashLabel, squashInput, timelineLabel, timelineInput);
     if (bellyBone) panel.appendMany(bellyLabel, bellyInput);
     panel.append(buttons);
     this.ui.mii.append(panel);
