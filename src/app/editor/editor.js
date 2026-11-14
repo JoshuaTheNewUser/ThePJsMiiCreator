@@ -1522,7 +1522,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             gender: this.mii.gender,
             bellySize: Number(bellyInput.getValue()),
             bones: Object.fromEntries(
-              Array.from(offsets.entries()).filter(([, value]) => value.x || value.y || value.z),
+              bones.map((bone) => [bone.name, { rotation: { ...offsets.get(bone.name) }, position: { ...translations.get(bone.name) }, scale: { ...boneScales.get(bone.name) } }]).filter(([, value]) => Object.values(value.rotation).some(Boolean) || Object.values(value.position).some(Boolean) || Object.values(value.scale).some((amount) => amount !== 1)),
             ),
           };
           localStorage.setItem("thepjsmiicreator-pose-" + this.mii.gender, JSON.stringify(pose));
@@ -1700,6 +1700,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       if (restore) {
         for (let bone of bones) {
           offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+          translations.set(bone.name, { x: 0, y: 0, z: 0 }); boneScales.set(bone.name, { x: 1, y: 1, z: 1 });
           bone.quaternion.copy(originals.get(bone.name));
           bone.position.copy(basePositions.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
@@ -1811,6 +1812,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         importedAnimation = null;
         for (let bone of bones) {
           bone.quaternion.copy(originals.get(bone.name));
+          bone.position.copy(basePositions.get(bone.name));
           bone.scale.copy(originalScales.get(bone.name));
           bone.updateMatrixWorld(!0);
         }
