@@ -34,6 +34,26 @@ function installCreatorHub() {
     boxShadow: "0 5px 22px #0005",
   });
   document.body.appendChild(launcher);
+  // Windows 7 Aero: local MP3 drop-in player. No file is uploaded to the server.
+  let aeroDock = document.createElement("div"), aeroPanel = document.createElement("section"),
+    aeroAudio = document.createElement("audio"), aeroObjectUrl = null;
+  Object.assign(aeroDock.style,{position:"fixed",left:"16px",bottom:"16px",zIndex:"9997",display:"none",fontFamily:"Segoe UI,Arial,sans-serif"});
+  Object.assign(aeroPanel.style,{display:"none",width:"min(310px,calc(100vw - 32px))",padding:"12px",marginBottom:"8px",border:"1px solid #a9c8df",borderRadius:"10px",background:"linear-gradient(145deg,#f4fbffed,#c9e4f5ed)",color:"#18344a",boxShadow:"0 8px 28px #0005",backdropFilter:"blur(14px)"});
+  let aeroTitle=document.createElement("strong");aeroTitle.textContent="🎵 Windows 7 · MP3 Player";
+  let aeroHint=document.createElement("div");aeroHint.textContent="Your music goes here — choose an MP3 file.";Object.assign(aeroHint.style,{fontSize:"12px",margin:"8px 0",opacity:".8"});
+  let aeroInput=document.createElement("input");aeroInput.type="file";aeroInput.accept=".mp3,audio/mpeg";aeroInput.setAttribute("aria-label","Choose an MP3 file");aeroInput.style.width="100%";
+  let aeroName=document.createElement("div");aeroName.textContent="No MP3 selected";aeroName.style.cssText="font-size:12px;margin:8px 0;overflow-wrap:anywhere";
+  let aeroControls=document.createElement("div");Object.assign(aeroControls.style,{display:"flex",gap:"6px",flexWrap:"wrap",marginTop:"8px"});
+  const aeroButton=(label,fn)=>{let b=document.createElement("button");b.type="button";b.textContent=label;Object.assign(b.style,{border:"1px solid #8baec8",borderRadius:"6px",padding:"6px 10px",background:"linear-gradient(#fff,#dcecf7)",color:"#18344a",cursor:"pointer"});b.addEventListener("click",fn);aeroControls.appendChild(b);return b;};
+  let aeroPlay=aeroButton("▶ Play",()=>{if(aeroAudio.src)aeroAudio.play().catch(()=>{aeroName.textContent="Press Play again after selecting a valid audio file.";});});
+  aeroButton("Ⅱ Pause",()=>aeroAudio.pause());
+  aeroButton("✕ Remove",()=>{aeroAudio.pause();aeroAudio.removeAttribute("src");aeroAudio.load();if(aeroObjectUrl)URL.revokeObjectURL(aeroObjectUrl);aeroObjectUrl=null;aeroName.textContent="No MP3 selected";aeroInput.value="";});
+  let aeroVolume=document.createElement("input");aeroVolume.type="range";aeroVolume.min="0";aeroVolume.max="1";aeroVolume.step="0.01";aeroVolume.value="0.7";aeroVolume.style.width="100%";aeroVolume.setAttribute("aria-label","MP3 volume");aeroAudio.volume=.7;aeroVolume.addEventListener("input",()=>aeroAudio.volume=Number(aeroVolume.value));
+  aeroInput.addEventListener("change",()=>{let file=aeroInput.files?.[0];if(!file)return;if(!file.type.startsWith("audio/")&&!/\.mp3$/i.test(file.name)){aeroName.textContent="Please choose an MP3 audio file.";return;}if(aeroObjectUrl)URL.revokeObjectURL(aeroObjectUrl);aeroObjectUrl=URL.createObjectURL(file);aeroAudio.src=aeroObjectUrl;aeroName.textContent="Loaded: "+file.name;aeroAudio.load();});
+  aeroPanel.append(aeroTitle,aeroHint,aeroInput,aeroName,aeroControls,aeroVolume,aeroAudio);aeroDock.appendChild(aeroPanel);
+  let aeroToggle=document.createElement("button");aeroToggle.type="button";aeroToggle.textContent="🎵 Aero MP3";Object.assign(aeroToggle.style,{padding:"10px 14px",border:"1px solid #9fc4df",borderRadius:"9px",background:"linear-gradient(145deg,#f5fcffdd,#b6d8efee)",color:"#17344b",fontWeight:"700",cursor:"pointer",boxShadow:"0 4px 16px #0004"});aeroToggle.addEventListener("click",()=>aeroPanel.style.display=aeroPanel.style.display==="none"?"block":"none");aeroDock.appendChild(aeroToggle);document.body.appendChild(aeroDock);
+  const syncAeroTheme=()=>{aeroDock.style.display=document.documentElement.dataset.theme==="windows7"?"block":"none";};
+  const aeroThemeObserver=new MutationObserver(syncAeroTheme);aeroThemeObserver.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});syncAeroTheme();
   let overlay = null, gameTimer = null, scores = { memory: 0, trivia: 0, reaction: 0, rps: 0 };
   const clearTimer = () => { if (gameTimer !== null) clearTimeout(gameTimer); gameTimer = null; };
   const button = (label, callback, parent) => {
@@ -147,6 +167,28 @@ function installCreatorHub() {
             if(ms<350)scores.reaction++;
           }
         });
+      }],
+      ["🧊 3D Shape Lab", () => {
+        let area=show("3D Shape Lab","A little interactive CSS 3D playground — drag the sliders or rotate the object.");
+        let stage=document.createElement("div");Object.assign(stage.style,{height:"245px",display:"grid",placeItems:"center",perspective:"700px",overflow:"hidden",borderRadius:"12px",background:"radial-gradient(circle at 50% 40%,#315b68,#101b2b)"});
+        let object=document.createElement("div");Object.assign(object.style,{width:"112px",height:"112px",position:"relative",transformStyle:"preserve-3d",transform:"rotateX(-24deg) rotateY(35deg)",transition:"transform .18s"});
+        let faces=[["front","translateZ(56px)"],["back","rotateY(180deg) translateZ(56px)"],["right","rotateY(90deg) translateZ(56px)"],["left","rotateY(-90deg) translateZ(56px)"],["top","rotateX(90deg) translateZ(56px)"],["bottom","rotateX(-90deg) translateZ(56px)"]];
+        faces.forEach(([name,transform],i)=>{let face=document.createElement("div");Object.assign(face.style,{position:"absolute",inset:"0",display:"grid",placeItems:"center",border:"2px solid #d9f5ff99",background:["#31b6a4dd","#257b9add","#3c9bd5dd","#206b82dd","#80d9c5dd","#16465edd"][i],backdropFilter:"blur(2px)",fontSize:"26px",fontWeight:"800",color:"white",transform});face.textContent=["PJ","912","★","◆","🎮","🍀"][i];object.appendChild(face);});
+        stage.appendChild(object);area.appendChild(stage);
+        let rx=-24,ry=35,shape="cube";
+        const redraw=()=>{object.style.transform="rotateX("+rx+"deg) rotateY("+ry+"deg)";};
+        let controls=document.createElement("div");Object.assign(controls.style,{display:"flex",gap:"7px",flexWrap:"wrap",marginTop:"10px"});
+        action(controls,"↶ Rotate left",()=>{ry-=25;redraw();});action(controls,"↷ Rotate right",()=>{ry+=25;redraw();});action(controls,"↑ Tilt",()=>{rx-=20;redraw();});action(controls,"↓ Tilt",()=>{rx+=20;redraw();});
+        action(controls,"Reset",()=>{rx=-24;ry=35;redraw();});
+        action(controls,"Auto spin",()=>{let active=true;let stop=action(controls,"Stop spin",()=>{active=false;stop.remove();});const spin=()=>{if(!active)return;ry+=2;redraw();gameTimer=setTimeout(spin,35);};spin();});
+        area.appendChild(controls);
+        let shapeRow=document.createElement("div");Object.assign(shapeRow.style,{display:"flex",gap:"7px",flexWrap:"wrap",marginTop:"8px"});
+        action(shapeRow,"Cube",()=>{object.style.borderRadius="0";object.style.opacity="1";shape="cube";sayShape();});
+        action(shapeRow,"Soft cube",()=>{object.style.borderRadius="24px";object.style.opacity=".92";shape="soft cube";sayShape();});
+        action(shapeRow,"Hologram",()=>{object.style.borderRadius="50%";object.style.opacity=".72";object.style.filter="hue-rotate(80deg)";shape="hologram sphere";sayShape();});
+        let shapeInfo=note(area,"Current object: cube");
+        function sayShape(){shapeInfo.textContent="Current object: "+shape+". Rotate it to inspect the 3D effect.";}
+        area.appendChild(shapeRow);
       }],
       ["🎨 Color Mixer", () => {
         let area=show("Color Mixer","Mix an RGB color and copy its HEX value.");
