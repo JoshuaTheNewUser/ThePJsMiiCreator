@@ -578,7 +578,6 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         max: "150",
         step: "1",
         value: "100",
-        disabled: bellyBone ? null : "disabled",
       }).style({ width: "100%" }),
       applyBelly = () => {
         if (!bellyBone) return;
