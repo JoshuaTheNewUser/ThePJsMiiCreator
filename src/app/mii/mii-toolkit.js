@@ -59,6 +59,15 @@ function installMiiToolkitHub() {
         <button id="pj-mii-toolkit-export" type="button" disabled>Export converted file</button>
       </div>
       <div id="pj-mii-toolkit-status" aria-live="polite">Choose a supported Mii data file to inspect it.</div>
+      <h3>FFL Resource Lab · JavaScript extractor</h3>
+      <p>Extracts shape meshes as GLB and textures as PNG from a compatible FFRA resource archive. Everything runs locally in your browser.</p>
+      <div class="pj-toolkit-row"><input id="pj-ffl-archive" type="file" accept=".dat,.bin,application/octet-stream" aria-label="Choose FFL resource archive"></div>
+      <div class="pj-toolkit-row">
+        <label>Texture entries <input id="pj-ffl-texture-count" type="number" min="1" max="4096" value="317" style="width:76px"></label>
+        <label>Shape entries <input id="pj-ffl-shape-count" type="number" min="1" max="8192" value="857" style="width:76px"></label>
+        <button id="pj-ffl-extract" type="button">Extract GLB + PNG ZIP</button>
+      </div>
+      <div id="pj-ffl-status" aria-live="polite" class="pj-toolkit-card">Choose an FFL resource archive. Default counts are for the common 317-texture / 857-shape layout.</div>
       <h3>Mii ecosystem projects</h3>
       <div class="pj-toolkit-grid">
         <article class="pj-toolkit-card"><strong>MiiAnimator</strong><p>FK/IK posing, squash &amp; stretch, animation curves and .miianim clips. This creator's Pose Maker timeline is the native starting point for compatibility.</p><a href="https://github.com/patchzyy/MiiAnimator" target="_blank" rel="noopener noreferrer">Open repository ↗</a></article>
@@ -75,6 +84,38 @@ function installMiiToolkitHub() {
       <p><strong>Compatibility note:</strong> The supplied ariankordi/MiiPy URL currently returns 404. Send the corrected repository link if that was a different project. .miianim playback and FFL.js rendering are not claimed as integrated yet.</p>
     </section>`;
   document.body.appendChild(overlay);
+
+
+  const fflFileInput = overlay.querySelector("#pj-ffl-archive");
+  const fflExtractButton = overlay.querySelector("#pj-ffl-extract");
+  const fflStatus = overlay.querySelector("#pj-ffl-status");
+  fflExtractButton.addEventListener("click", async () => {
+    const file = fflFileInput.files && fflFileInput.files[0];
+    if (!file) { fflStatus.textContent = "Choose an FFL resource archive first."; return; }
+    if (!window.PJFFLResourceTools) { fflStatus.textContent = "The JavaScript FFL extractor did not load."; return; }
+    const textureCount = Number(overlay.querySelector("#pj-ffl-texture-count").value);
+    const shapeCount = Number(overlay.querySelector("#pj-ffl-shape-count").value);
+    if (!Number.isInteger(textureCount) || textureCount < 1 || !Number.isInteger(shapeCount) || shapeCount < 1) {
+      fflStatus.textContent = "Enter valid positive texture and shape counts."; return;
+    }
+    fflExtractButton.disabled = true;
+    fflStatus.textContent = "Reading archive and extracting resources…";
+    try {
+      const result = await window.PJFFLResourceTools.extract(await file.arrayBuffer(), {
+        textureCount, shapeCount,
+        onProgress: (kind, current, total) => { fflStatus.textContent = "Extracting " + kind + ": " + current + " / " + total; }
+      });
+      const blob = new Blob([result.zip], { type: "application/zip" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = file.name.replace(/\.[^.]+$/, "") + "-ffl-extracted.zip";
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      fflStatus.textContent = "✓ Extracted " + result.files.length + " resources from FFRA v" + result.archive.version.toString(16) + ". ZIP contains meshes/*.glb and textures/*.png.";
+    } catch (error) {
+      fflStatus.textContent = "Extraction failed: " + (error && error.message ? error.message : String(error));
+    } finally { fflExtractButton.disabled = false; }
+  });
 
   const fileInput = overlay.querySelector("#pj-mii-toolkit-file");
   const formatSelect = overlay.querySelector("#pj-mii-toolkit-format");
