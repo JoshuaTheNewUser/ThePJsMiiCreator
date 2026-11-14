@@ -304,6 +304,12 @@ TIP: Set a background in the Scene tab to chroma-key exported videos!`),
             {
               type: 5,
               html: new Html("button")
+                .text("🎭 Apply saved PJ expression")
+                .on("click", async () => { await applySavedPJExpression(); }),
+            },
+            {
+              type: 5,
+              html: new Html("button")
                 .text(translate("Export animated video (MP4)"))
                 .on("click", async () => {
                   E(3);
@@ -1306,6 +1312,30 @@ Combining these options together may be useful.
       } else if ((F.swapAnimation("Wait"), ot === !1))
         Mr().actions.forEach((mt) => (mt.paused = !0));
       if ((F.updateBody(0), ne(), T.animSpeed < 0)) T.animSpeed = 0;
+    let savedPJExpressionIndex = -1;
+    async function applySavedPJExpression() {
+      let presets = [];
+      try {
+        presets = JSON.parse(localStorage.getItem("thepjsmiicreator-expression-presets-v2") || "[]");
+      } catch {}
+      presets = Array.isArray(presets) ? presets.filter((preset) =>
+        preset && preset.assets && ["eyebrowType","eyeType","mouthType","eyebrowRotate","eyeRotate","mouthY","eyeY","eyebrowY"]
+          .every((field) => Number.isInteger(preset.assets[field]) && preset.assets[field] >= 0)
+      ) : [];
+      if (!presets.length) {
+        await Modal.alert("Expression Creator", "No saved PJ expressions were found. Create and save one in the Mii editor first.");
+        return;
+      }
+      savedPJExpressionIndex = (savedPJExpressionIndex + 1) % presets.length;
+      const preset = presets[savedPJExpressionIndex];
+      Object.assign(e, preset.assets);
+      M = e.exportHex("studioData");
+      T.expression = "0";
+      Xt.expression = "-1";
+      await F.updateMiiHead();
+      Ke();
+      await Modal.alert("Expression applied", "Applied " + preset.name + ". Your selected custom-render pose remains active.");
+    }
       if (T.animSpeed > 200) T.animSpeed = 200;
       let Ue = T.animSpeed / 100;
       ((F.currentAnimTimescale = Ue),
