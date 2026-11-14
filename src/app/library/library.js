@@ -934,6 +934,18 @@ function openLibrary(e, t = !1, r = !1) {
             }
           }
         }
+        let ttsAction = null;
+        if (!r && !t) {
+          ttsAction = new Html("button").text("🔊 Mii TTS Generator").style({
+            width: "100%", "margin-top": "6px", padding: "7px 9px", "font-size": "0.78rem",
+            "border-radius": "7px", border: "1px solid var(--stroke)", background: "var(--container)",
+            color: "var(--text)", cursor: "pointer",
+          });
+          ttsAction.elm.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openMiiTTSGenerator(de, G);
+          });
+        }
         let te = !1;
         (K.on("error", () => {
           if (te === !0) return;
@@ -942,7 +954,7 @@ function openLibrary(e, t = !1, r = !1) {
           K.on("load", () => {
             I_();
           }),
-          Q.appendMany(K, ae).appendTo(c),
+          Q.appendMany(...(ttsAction ? [K, ae, ttsAction] : [K, ae])).appendTo(c),
           setTimeout(() => {
             let he = e;
             if (r) {

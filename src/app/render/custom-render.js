@@ -304,6 +304,12 @@ TIP: Set a background in the Scene tab to chroma-key exported videos!`),
             {
               type: 5,
               html: new Html("button")
+                .text("🎭 Apply saved PJ expression")
+                .on("click", async () => { await applySavedPJExpression(); }),
+            },
+            {
+              type: 5,
+              html: new Html("button")
                 .text(translate("Export animated video (MP4)"))
                 .on("click", async () => {
                   E(3);
@@ -1306,6 +1312,52 @@ Combining these options together may be useful.
       } else if ((F.swapAnimation("Wait"), ot === !1))
         Mr().actions.forEach((mt) => (mt.paused = !0));
       if ((F.updateBody(0), ne(), T.animSpeed < 0)) T.animSpeed = 0;
+    let savedPJExpressionIndex = -1;
+    async function applySavedPJExpression() {
+      let presets = [];
+      try {
+        presets = JSON.parse(localStorage.getItem("thepjsmiicreator-expression-presets-v2") || "[]");
+      } catch {}
+      const assetFields = {
+        eyebrowType: 23, eyeType: 59, mouthType: 35,
+        eyebrowRotate: 31, eyeRotate: 31, mouthY: 31, eyeY: 31, eyebrowY: 31,
+      };
+      const valid = Array.isArray(presets) ? presets.filter((preset) => {
+        if (!preset || typeof preset.name !== "string") return false;
+        if (preset.mode === "native" || Number.isInteger(preset.nativeExpression)) {
+          return EXPRESSIONS.some((expression) => expression.id === Number(preset.nativeExpression));
+        }
+        if (!preset.assets) return false;
+        return Object.entries(assetFields).every(([field, max]) =>
+          Number.isInteger(preset.assets[field]) && preset.assets[field] >= 0 && preset.assets[field] <= max
+        );
+      }) : [];
+      if (!valid.length) {
+        await Modal.alert("Expression Studio", "No supported saved expressions were found. Create a native FFL or custom asset expression in the Mii editor first.");
+        return;
+      }
+      savedPJExpressionIndex = (savedPJExpressionIndex + 1) % valid.length;
+      const preset = valid[savedPJExpressionIndex];
+      if (preset.mode === "native" || Number.isInteger(preset.nativeExpression)) {
+        const expressionId = Number(preset.nativeExpression);
+        if (!EXPRESSIONS.some((expression) => expression.id === expressionId)) {
+          await Modal.alert("Expression Studio", "That native FFL expression ID is not available in this version.");
+          return;
+        }
+        T.expression = String(expressionId);
+        Xt.expression = "__pj_force_native_refresh__";
+        Ke();
+        await Modal.alert("Native expression applied", "Applied " + preset.name + " using the Custom Render FFL expression catalogue. Your selected pose remains active.");
+        return;
+      }
+      Object.assign(e, preset.assets);
+      M = e.exportHex("studioData");
+      T.expression = "0";
+      Xt.expression = "__pj_force_custom_refresh__";
+      await F.updateMiiHead();
+      Ke();
+      await Modal.alert("Custom asset expression applied", "Applied " + preset.name + " using its saved eyebrow, eye, mouth and positioning assets. Your selected pose remains active.");
+    }
       if (T.animSpeed > 200) T.animSpeed = 200;
       let Ue = T.animSpeed / 100;
       ((F.currentAnimTimescale = Ue),

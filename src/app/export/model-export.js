@@ -78,7 +78,7 @@ async function openModelExportDialog(e, t) {
               let ue = `Uh oh ${le}`,
                 I = `UHH-${le}`;
               try {
-                let N = await exportMiiModel(m, re[le]);
+                let N = await exportMiiModel(m, re[le], void 0, m.main.exportMode === "animation" ? m.main.animation : null);
                 if (N.name) I = N.name;
                 if (N.data) ue = N.data;
               } catch (N) {}
@@ -89,9 +89,17 @@ async function openModelExportDialog(e, t) {
             });
           } else
             try {
-              let he = await exportMiiModel(m, e, c);
+              let he = await exportMiiModel(m, e, c, m.main.exportMode === "animation" ? m.main.animation : null);
+              if (!he?.data) throw new Error("The exporter returned no GLB data.");
               downloadBinary(he.data, he.name);
-            } catch (he) {}
+            } catch (he) {
+              console.error("Mii GLB export failed:", he);
+              Modal.alert(
+                translate("Export failed"),
+                String(he?.message || he || "Unknown GLB export error"),
+                "body",
+              );
+            }
           if ((jp(n), !yk))
             (Modal.alert(
               translate("Notice"),
@@ -200,8 +208,14 @@ This message will only appear once this session.`),
         item: `<img width=96 height=96 src="${F.url}" title="${F.name}" style="margin:-10px;pointer-events:none">`,
       }))
       .filter((F) => F !== void 0),
+    animationClips = getBodyModels().get(n)?.get(e.gender === 0 ? 0 : 1)?.clips,
+    defaultAnimation = animationClips?.has("Finish")
+      ? "Finish"
+      : animationClips?.has("Pose.01")
+        ? "Pose.01"
+        : animationClips?.keys().next().value || "Pose.01",
     m = {
-      main: { type: 5, pose: d(), bodyModel: n, expression: 0 },
+      main: { type: 5, pose: d(), bodyModel: n, expression: 0, exportMode: "pose", animation: defaultAnimation },
       extras: {
         attachHead: !1,
         clothes: -1,
@@ -218,6 +232,8 @@ This message will only appear once this session.`),
         pose: translate("Pose"),
         bodyModel: translate("Body model"),
         expression: translate("Expression"),
+        exportMode: translate("Export mode"),
+        animation: translate("Animation"),
       },
       extras: {
         extras: translate("Extras"),
@@ -251,6 +267,9 @@ Can help in some programs (i.e. game engines).`),
     M = null,
     C = null,
     R = null,
+    P0 = null,
+    P1 = null,
+    P2 = null,
     B = new Html("div").class("input-group").appendTo(b);
   (B.append(new Html("span").text(A.main.type)),
     createDropdown(
@@ -271,7 +290,10 @@ Can help in some programs (i.e. game engines).`),
               T.style({ display: "none" }),
               M.style({ display: "none" }),
               C.style({ display: "none" }),
-              R.style({ display: "none" }));
+              R.style({ display: "none" }),
+              P0.style({ display: "none" }),
+              P1.style({ display: "none" }),
+              P2.style({ display: "none" }));
             break;
           case 5:
             (S.style({ display: "flex" }),
@@ -280,7 +302,10 @@ Can help in some programs (i.e. game engines).`),
               T.style({ display: "flex" }),
               M.style({ display: "flex" }),
               C.style({ display: "flex" }),
-              R.style({ display: "flex" }));
+              R.style({ display: "flex" }),
+              P0.style({ display: "flex" }),
+              P1.style({ display: m.main.exportMode === "pose" ? "flex" : "none" }),
+              P2.style({ display: m.main.exportMode === "animation" ? "flex" : "none" }));
             break;
         }
       },
@@ -329,6 +354,55 @@ Can help in some programs (i.e. game engines).`),
         };
       },
     ),
+    (P0 = new Html("div").class("input-group").appendTo(b)),
+    P0.append(new Html("span").text(A.main.exportMode)),
+    createDropdown(
+      P0,
+      [
+        { id: "pose", item: translate("Static pose") },
+        { id: "animation", item: translate("Animated GLB") },
+      ],
+      (F) => {
+        m.main.exportMode = F;
+        P1.style({ display: F === "pose" ? "flex" : "none" });
+        P2.style({ display: F === "animation" ? "flex" : "none" });
+      },
+      m.main.exportMode,
+      "180px",
+    ),
+    (P1 = new Html("div").class("input-group").appendTo(b)),
+    P1.append(new Html("span").text(A.main.pose)),
+    createDropdown(
+      P1,
+      f,
+      (F) => {
+        let te = h.find((re) => re.id === F);
+        if (te && te.id !== "separator") m.main.pose = te;
+      },
+      m.main.pose.id,
+      "180px",
+      "?",
+    ),
+    (P2 = new Html("div").class("input-group").appendTo(b)),
+    P2.append(new Html("span").text(A.main.animation)),
+    createDropdown(
+      P2,
+      (() => {
+        let F = animationClips ? Array.from(animationClips.keys()) : [];
+        if (!F.length) F = ["Pose.01"];
+        return [
+          ...F.map((he) => ({ id: he, item: he })),
+          { id: "__all__", item: translate("All animations (single GLB)") },
+        ];
+      })(),
+      (F) => {
+        m.main.animation = F;
+      },
+      defaultAnimation,
+      "180px",
+    ),
+    P1.style({ display: "flex" }),
+    P2.style({ display: "none" }),
     (S = new Html("div").class("flex-group").style({ "justify-content": "flex-start" }).appendTo(v)));
   let X = Math.random();
   (S.appendMany(
@@ -408,8 +482,8 @@ Can help in some programs (i.e. game engines).`),
   )
     s.style({ display: "flex" });
 }
-function exportMiiModel(e, t, r, n, i) {
-  return new Promise(async (o) => {
+function exportMiiModel(e, t, r, animationName, i) {
+  return new Promise(async (o, reject) => {
     let s = await getRendererSetting("modelExportTexResolution");
     if (((s = Number(s)), isNaN(s))) s = 1024;
     let a = await getRendererSetting("modelExportMaterialType"),
@@ -432,7 +506,8 @@ function exportMiiModel(e, t, r, n, i) {
     }
     let d = getTHREE(),
       h = getSharedRenderer();
-    if ((h.forceContextRestore(), e.main.type === 6)) {
+    if (h.getContext()?.isContextLost()) h.forceContextRestore();
+    if (e.main.type === 6) {
       let S = await Bb(t, getSharedRenderer(), e.main.expression, s),
         E = S.img,
         T = document.createElement("canvas");
@@ -628,10 +703,17 @@ function exportMiiModel(e, t, r, n, i) {
       if (E === void 0) throw "Couldn't find head bone.";
       E.attach(v.headModel);
     } else ((v.miiGroup = v.headModel), (v.headModel.name = translate("%1 (Head)", t.nickname)));
-    if (e.main.type === 5) {
+    if (
+      e.main.type === 5 &&
+      !(e.main.exportMode === "pose" && e.main.pose.id.includes("t-pose"))
+    ) {
       let S = v.miiGroup,
         E = new d.AnimationMixer(S),
-        T = b.clips.get("Pose.01"),
+        poseClipName =
+          e.main.exportMode === "pose"
+            ? "Pose." + e.main.pose.idNumerical.toString().padStart(2, "0")
+            : "Pose.01",
+        T = b.clips.get(poseClipName) || b.clips.get("Pose.01"),
         M = _k(T, "skl_root", "nw4f_root"),
         C = E.clipAction(M);
       if ((C.play(), (C.timeScale = 0), (C.time = 0), E.update(0), e.main.bodyModel)) {
@@ -834,6 +916,7 @@ function exportMiiModel(e, t, r, n, i) {
       new Rp().parse(
         v.miiGroup,
         async (S) => {
+          try {
           if (S instanceof ArrayBuffer) {
             setTimeout(() => {
               getBodyModels().forEach((L) => {
@@ -1066,9 +1149,27 @@ Please use a 3D software to flip the hair and forehead manually!`),
                 _.dispose();
               }));
           }
+          } catch (error) {
+            console.error("Animated GLB export processing failed:", error);
+            reject(error);
+          }
         },
-        (S) => {},
-        { binary: !0 },
+        (S) => {
+          console.error("GLB exporter failed:", S);
+          reject(S instanceof Error ? S : new Error(String(S)));
+        },
+        {
+          binary: !0,
+          animations: (() => {
+            let names =
+              animationName === "__all__"
+                ? Array.from(b?.clips?.keys() || [])
+                : [animationName];
+            return names
+              .filter((name) => name && b?.clips?.has(name))
+              .map((name) => _k(b.clips.get(name), "skl_root", "nw4f_root", null, !0));
+          })(),
+        },
       ));
   });
 }
@@ -1276,7 +1377,7 @@ function P3(e, t, r) {
     (e.setTranslation([0, 0, 0]), e.setRotation([0, 0, 0, 1]), e.setScale([1, 1, 1]));
   }
 }
-function _k(e, t = "skl_root", r = "nw4f_root", n = null) {
+function _k(e, t = "skl_root", r = "nw4f_root", n = null, preservePositions = !1) {
   let i = getTHREE();
   if (n == null) n = new i.Vector3();
   let o = [];
@@ -1286,7 +1387,7 @@ function _k(e, t = "skl_root", r = "nw4f_root", n = null) {
       c = a[1],
       u = l.toLowerCase() === t.toLowerCase() || l.toLowerCase() === r.toLowerCase();
     if (c === "scale") continue;
-    if (c === "position" || (u && (c === "position" || c === "quaternion"))) continue;
+    if ((!preservePositions && c === "position") || (u && (c === "position" || c === "quaternion"))) continue;
     o.push(s.clone());
   }
   return new i.AnimationClip(e.name + "_Baked", e.duration, o);

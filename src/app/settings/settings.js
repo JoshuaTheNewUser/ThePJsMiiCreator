@@ -184,6 +184,7 @@ All data is permanently lost and cannot be recovered!`),
             { label: () => translate("Wii"), value: "wii" },
             { label: () => translate("Wii U"), value: "wiiu" },
             { label: () => translate("Miitomo"), value: "miitomo" },
+            { label: () => "Windows 7 Aero", value: "windows7" },
           ],
         },
         colorScheme: {
