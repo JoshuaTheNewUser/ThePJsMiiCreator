@@ -347,7 +347,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         this.secretKeyBuffer.push(key);
         this.secretKeyBuffer = this.secretKeyBuffer.slice(-sequence.length);
         if (sequence.every((value, index) => this.secretKeyBuffer[index] === value)) {
-          this.unlockSecret("konami", "Konami Code", "You found the classic secret input! PJ mode unlocked.");
+          this.unlockSecret("konami", "Konami Code", "You found the classic secret input! A new Secret Vault entry has been unlocked.");
           this.secretKeyBuffer = [];
         }
         if (key === "p") this.secretTypingBuffer = "p";
