@@ -475,7 +475,7 @@
     },
     {
       "file": "app/editor/editor.js",
-      "description": "MiiEditor: the editor screen."
+      "description": "Mii editor with custom bone posing, translation and scale, abdomen-only vertex extrusion, Blender-style keyframe timeline, motion clips, IK, and expression tools."
     },
     {
       "file": "vendor/swiper.js",
