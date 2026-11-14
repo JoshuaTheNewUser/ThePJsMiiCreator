@@ -511,9 +511,142 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       }),
       makeButton("Close sandbox", close),
     );
-    panel.appendMany(heading, description, status, itemButton, sizeLabel, sizeInput, controls);
+    panel.appendMany(heading, description, status, itemButton, sizeLabel, sizeInput, controls,
+      makeButton("🎬 Play blueberry cutscene", () => this.openSandboxCutscene()));
     this.ui.mii.append(panel);
     this.ui.sandboxPanel = panel;
+  }
+  openSandboxCutscene() {
+    if (this.ui.sandboxCutscenePanel) {
+      this.ui.sandboxCutscenePanel.cleanup();
+      this.ui.sandboxCutscenePanel = null;
+      return;
+    }
+    let body = this.ui.scene?.bodyModels?.get(this.mii.gender),
+      root = body?.model?.scene;
+    if (!root) {
+      Notify.show("Sandbox Cutscene", "The 3D model is not ready yet. Try again in a moment.");
+      return;
+    }
+    let originalScale = root.scale.clone(),
+      originals = [],
+      timer = null,
+      closed = false,
+      started = false,
+      panel = new Html("div").style({
+        position: "absolute",
+        inset: "12% 8%",
+        "min-height": "260px",
+        padding: "clamp(16px, 4vw, 30px)",
+        display: "flex",
+        "flex-direction": "column",
+        "justify-content": "space-between",
+        gap: "18px",
+        "box-sizing": "border-box",
+        color: "#fff",
+        background: "linear-gradient(145deg, #101a2cF2, #243d65F2)",
+        border: "2px solid #8fc7ff",
+        "border-radius": "18px",
+        "box-shadow": "0 12px 48px #000a",
+        "z-index": "20",
+        "text-align": "center",
+      }),
+      eyebrow = new Html("div").text("THE PJ'S MII CREATOR • SANDBOX CINEMA").style({
+        "font-size": "0.72rem", "letter-spacing": "0.12em", opacity: "0.8",
+      }),
+      title = new Html("div").text("The TCM Gum Experiment").style({
+        "font-size": "clamp(1.35rem, 4vw, 2rem)", "font-weight": "800",
+      }),
+      sceneText = new Html("div").text("A curious Mii discovers a mysterious piece of TCM Gum...").style({
+        "font-size": "clamp(1rem, 2.5vw, 1.25rem)", "line-height": "1.5",
+      }),
+      progress = new Html("div").text("Scene 1 / 5").style({ opacity: "0.75", "font-size": "0.85rem" }),
+      makeButton = (label, callback) => addButtonSounds(
+        new Html("button").text(label).style({ padding: "10px 14px" }).on("click", callback),
+      ),
+      restore = () => {
+        if (timer !== null) clearInterval(timer);
+        timer = null;
+        root.scale.copy(originalScale);
+        for (let [mesh, material] of originals) mesh.material = material;
+        root.updateMatrixWorld(!0);
+      },
+      applyTint = () => {
+        if (originals.length) return;
+        root.traverse((object) => {
+          if (!object.isMesh || !object.material) return;
+          let original = object.material;
+          originals.push([object, original]);
+          let tint = (material) => {
+            let copy = material.clone();
+            if (copy.color) copy.color.lerp(new THREE.Color("#397bd1"), 0.58);
+            return copy;
+          };
+          object.material = Array.isArray(original) ? original.map(tint) : tint(original);
+        });
+      },
+      finish = () => {
+        if (timer !== null) clearInterval(timer);
+        timer = null;
+        progress.text("Cutscene complete");
+        sceneText.text("Blueberry mode achieved! The experiment is over... for now. You can replay the scene or close the cinema.");
+        replayButton.style({ display: "inline-block" });
+        skipButton.style({ display: "none" });
+        started = false;
+      },
+      play = () => {
+        restore();
+        originals = [];
+        started = true;
+        replayButton.style({ display: "none" });
+        skipButton.style({ display: "inline-block" });
+        title.text("The TCM Gum Experiment");
+        let scenes = [
+          ["Scene 1 / 5", "A curious Mii finds a strange piece of TCM Gum. The label says: “Experimental flavour. Probably fine.”", 0],
+          ["Scene 2 / 5", "One tiny taste later... the Mii pauses. Something feels a little unusual.", 0],
+          ["Scene 3 / 5", "A soft blue glow appears. The transformation begins in a harmless, cartoony puff!", 0.35],
+          ["Scene 4 / 5", "Rounder, bluer, and VERY surprised. The blueberry effect reaches its maximum!", 1],
+          ["Scene 5 / 5", "Ta-da! A blueberry-themed Mii. Maybe read the label next time?", 1],
+        ];
+        let index = 0, tick = 0;
+        sceneText.text(scenes[0][1]);
+        progress.text(scenes[0][0]);
+        timer = setInterval(() => {
+          tick++;
+          if (index >= 2) {
+            applyTint();
+            let amount = 1 + Math.min(1, (index - 2 + tick / 50) / 2) * 0.55;
+            root.scale.set(originalScale.x * amount, originalScale.y * (1 + (amount - 1) * 0.82), originalScale.z * amount);
+            root.updateMatrixWorld(!0);
+          }
+          if (tick >= 50) {
+            tick = 0;
+            index++;
+            if (index >= scenes.length) {
+              finish();
+              return;
+            }
+            progress.text(scenes[index][0]);
+            sceneText.text(scenes[index][1]);
+          }
+        }, 60);
+      },
+      replayButton = makeButton("↻ Replay", play),
+      skipButton = makeButton("Skip to ending", finish),
+      closeButton = makeButton("Close cutscene", () => {
+        closed = true;
+        restore();
+        panel.cleanup();
+        this.ui.sandboxCutscenePanel = null;
+      }),
+      buttons = new Html("div").style({
+        display: "flex", "flex-wrap": "wrap", "justify-content": "center", gap: "10px",
+      });
+    buttons.appendMany(replayButton, skipButton, closeButton);
+    panel.appendMany(eyebrow, title, sceneText, progress, buttons);
+    this.ui.mii.append(panel);
+    this.ui.sandboxCutscenePanel = panel;
+    play();
   }
   openModelLab() {
     if (this.ui.modelLabPanel) {
