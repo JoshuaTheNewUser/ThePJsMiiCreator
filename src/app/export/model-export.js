@@ -78,7 +78,7 @@ async function openModelExportDialog(e, t) {
               let ue = `Uh oh ${le}`,
                 I = `UHH-${le}`;
               try {
-                let N = await exportMiiModel(m, re[le]);
+                let N = await exportMiiModel(m, re[le], void 0, m.main.exportMode === "animation" ? m.main.animation : null);
                 if (N.name) I = N.name;
                 if (N.data) ue = N.data;
               } catch (N) {}
@@ -89,7 +89,7 @@ async function openModelExportDialog(e, t) {
             });
           } else
             try {
-              let he = await exportMiiModel(m, e, c);
+              let he = await exportMiiModel(m, e, c, m.main.exportMode === "animation" ? m.main.animation : null);
               downloadBinary(he.data, he.name);
             } catch (he) {}
           if ((jp(n), !yk))
@@ -201,7 +201,7 @@ This message will only appear once this session.`),
       }))
       .filter((F) => F !== void 0),
     m = {
-      main: { type: 5, pose: d(), bodyModel: n, expression: 0 },
+      main: { type: 5, pose: d(), bodyModel: n, expression: 0, exportMode: "pose", animation: "Pose.01" },
       extras: {
         attachHead: !1,
         clothes: -1,
@@ -218,6 +218,8 @@ This message will only appear once this session.`),
         pose: translate("Pose"),
         bodyModel: translate("Body model"),
         expression: translate("Expression"),
+        exportMode: translate("Export mode"),
+        animation: translate("Animation"),
       },
       extras: {
         extras: translate("Extras"),
@@ -251,6 +253,9 @@ Can help in some programs (i.e. game engines).`),
     M = null,
     C = null,
     R = null,
+    P0 = null,
+    P1 = null,
+    P2 = null,
     B = new Html("div").class("input-group").appendTo(b);
   (B.append(new Html("span").text(A.main.type)),
     createDropdown(
@@ -271,7 +276,10 @@ Can help in some programs (i.e. game engines).`),
               T.style({ display: "none" }),
               M.style({ display: "none" }),
               C.style({ display: "none" }),
-              R.style({ display: "none" }));
+              R.style({ display: "none" }),
+              P0.style({ display: "none" }),
+              P1.style({ display: "none" }),
+              P2.style({ display: "none" }));
             break;
           case 5:
             (S.style({ display: "flex" }),
@@ -280,7 +288,10 @@ Can help in some programs (i.e. game engines).`),
               T.style({ display: "flex" }),
               M.style({ display: "flex" }),
               C.style({ display: "flex" }),
-              R.style({ display: "flex" }));
+              R.style({ display: "flex" }),
+              P0.style({ display: "flex" }),
+              P1.style({ display: m.main.exportMode === "pose" ? "flex" : "none" }),
+              P2.style({ display: m.main.exportMode === "animation" ? "flex" : "none" }));
             break;
         }
       },
@@ -329,6 +340,56 @@ Can help in some programs (i.e. game engines).`),
         };
       },
     ),
+    (P0 = new Html("div").class("input-group").appendTo(b)),
+    P0.append(new Html("span").text(A.main.exportMode)),
+    createDropdown(
+      P0,
+      [
+        { id: "pose", item: translate("Static pose") },
+        { id: "animation", item: translate("Animated GLB") },
+      ],
+      (F) => {
+        m.main.exportMode = F;
+        P1.style({ display: F === "pose" ? "flex" : "none" });
+        P2.style({ display: F === "animation" ? "flex" : "none" });
+      },
+      m.main.exportMode,
+      "180px",
+    ),
+    (P1 = new Html("div").class("input-group").appendTo(b)),
+    P1.append(new Html("span").text(A.main.pose)),
+    createDropdown(
+      P1,
+      f,
+      (F) => {
+        let te = h.find((re) => re.id === F);
+        if (te && te.id !== "separator") m.main.pose = te;
+      },
+      m.main.pose.id,
+      "180px",
+      "?",
+    ),
+    (P2 = new Html("div").class("input-group").appendTo(b)),
+    P2.append(new Html("span").text(A.main.animation)),
+    createDropdown(
+      P2,
+      (() => {
+        let F = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips;
+        let te = F ? Array.from(F.keys()) : [];
+        if (!te.length) te = ["Pose.01"];
+        return te.map((he) => ({ id: he, item: he }));
+      })(),
+      (F) => {
+        m.main.animation = F;
+      },
+      (() => {
+        let F = getBodyModels().get(n)?.get(t.gender === 0 ? 0 : 1)?.clips;
+        return F?.has("Finish") ? "Finish" : F?.has("Pose.01") ? "Pose.01" : F?.keys().next().value || "Pose.01";
+      })(),
+      "180px",
+    ),
+    P1.style({ display: "flex" }),
+    P2.style({ display: "none" }),
     (S = new Html("div").class("flex-group").style({ "justify-content": "flex-start" }).appendTo(v)));
   let X = Math.random();
   (S.appendMany(
@@ -408,7 +469,7 @@ Can help in some programs (i.e. game engines).`),
   )
     s.style({ display: "flex" });
 }
-function exportMiiModel(e, t, r, n, i) {
+function exportMiiModel(e, t, r, animationName, i) {
   return new Promise(async (o) => {
     let s = await getRendererSetting("modelExportTexResolution");
     if (((s = Number(s)), isNaN(s))) s = 1024;
@@ -631,7 +692,7 @@ function exportMiiModel(e, t, r, n, i) {
     if (e.main.type === 5) {
       let S = v.miiGroup,
         E = new d.AnimationMixer(S),
-        T = b.clips.get("Pose.01"),
+        T = b.clips.get(animationName || "Pose.01"),
         M = _k(T, "skl_root", "nw4f_root"),
         C = E.clipAction(M);
       if ((C.play(), (C.timeScale = 0), (C.time = 0), E.update(0), e.main.bodyModel)) {
@@ -1068,7 +1129,13 @@ Please use a 3D software to flip the hair and forehead manually!`),
           }
         },
         (S) => {},
-        { binary: !0 },
+        {
+          binary: !0,
+          animations:
+            animationName && b?.clips?.has(animationName)
+              ? [_k(b.clips.get(animationName), "skl_root", "nw4f_root")]
+              : [],
+        },
       ));
   });
 }
