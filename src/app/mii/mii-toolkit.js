@@ -150,7 +150,7 @@ function installMiiToolkitHub() {
       await ffljsLoadScript(sourceRoot + "ffl.browser.js", "renderer");
       if (!window.ModuleFFL || !window.FFLjs) throw new Error("FFL.js globals were not initialized.");
       ffljsStatus.textContent = "Initializing WebAssembly and loading your FFL resource…";
-      const wasmUrl = "https://raw.githubusercontent.com/ariankordi/FFL.js/master/ffl-emscripten.wasm";
+      const wasmUrl = "https://raw.githubusercontent.com/ariankordi/FFL.js/v2.2.2/ffl-emscripten.wasm";
       const module = await window.ModuleFFL({ locateFile: () => wasmUrl });
       ffljsInstance = await window.FFLjs.FFL.initWithResource(new Uint8Array(await resourceFile.arrayBuffer()), module);
       const data = new Uint8Array(await miiFile.arrayBuffer());
