@@ -452,13 +452,24 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           root.traverse((object) => {
             if (!object.isMesh || !object.material) return;
             let original = object.material;
-            originalMaterials.push([object, original]);
+            let canTint = (material) =>
+              material?.isMeshStandardMaterial ||
+              material?.isMeshPhongMaterial ||
+              material?.isMeshBasicMaterial ||
+              material?.isMeshLambertMaterial;
             let tint = (material) => {
+              if (!canTint(material)) return material;
               let copy = material.clone();
               if (copy.color) copy.color.lerp(new THREE.Color("#397bd1"), 0.58);
               return copy;
             };
-            object.material = Array.isArray(original) ? original.map(tint) : tint(original);
+            let tinted = Array.isArray(original)
+              ? original.map(tint)
+              : tint(original);
+            if (tinted !== original && (!Array.isArray(original) || tinted.some((m, i) => m !== original[i]))) {
+              originalMaterials.push([object, original]);
+              object.material = tinted;
+            }
           });
           transformed = true;
         }
@@ -576,13 +587,24 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         root.traverse((object) => {
           if (!object.isMesh || !object.material) return;
           let original = object.material;
-          originals.push([object, original]);
+          let canTint = (material) =>
+            material?.isMeshStandardMaterial ||
+            material?.isMeshPhongMaterial ||
+            material?.isMeshBasicMaterial ||
+            material?.isMeshLambertMaterial;
           let tint = (material) => {
+            if (!canTint(material)) return material;
             let copy = material.clone();
             if (copy.color) copy.color.lerp(new THREE.Color("#397bd1"), 0.58);
             return copy;
           };
-          object.material = Array.isArray(original) ? original.map(tint) : tint(original);
+          let tinted = Array.isArray(original)
+            ? original.map(tint)
+            : tint(original);
+          if (tinted !== original && (!Array.isArray(original) || tinted.some((m, i) => m !== original[i]))) {
+            originals.push([object, original]);
+            object.material = tinted;
+          }
         });
       },
       finish = () => {
