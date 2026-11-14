@@ -1417,8 +1417,15 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         const amount = Number(bellyInput.getValue()) / 100;
         const attribute = bellyVertexData.attribute, original = bellyVertexData.original, profile = bellyVertexData.profile;
         for (let index = 0; index < profile.length; index++) {
-          attribute.setXYZ(index, original[index * 3], original[index * 3 + 1],
-            original[index * 3 + 2] + (amount - 1) * bellyVertexData.depth * profile[index]);
+          const i = index * 3, x = original[i], y = original[i + 1], z = original[i + 2];
+          const side = z >= bellyVertexData.centerZ ? 1 : -1;
+          const expansion = (amount - 1) * bellyVertexData.depth * profile[index];
+          // Expand both sides of the abdomen. Mii body assets do not all use the
+          // same forward-axis convention, so a one-sided +Z mask can be invisible.
+          attribute.setXYZ(index,
+            x + Math.sign(x - bellyVertexData.centerX) * expansion * 0.22,
+            y,
+            z + side * expansion);
         }
         attribute.needsUpdate = true;
         bellyVertexData.geometry.computeVertexNormals();
@@ -1697,20 +1704,20 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       const centerX = (bounds.min.x + bounds.max.x) / 2;
       const centerY = bounds.min.y + height * 0.59;
       const centerZ = (bounds.min.z + bounds.max.z) / 2;
-      const radiusX = Math.max(0.001, (bounds.max.x - bounds.min.x) * 0.31);
-      const radiusY = height * 0.145;
-      const depth = Math.max(0.01, (bounds.max.z - bounds.min.z) * 0.24);
+      const radiusX = Math.max(0.001, (bounds.max.x - bounds.min.x) * 0.34);
+      const radiusY = height * 0.17;
+      const depth = Math.max(0.01, (bounds.max.z - bounds.min.z) * 0.30);
       const original = Array.from(attribute.array);
       const profile = new Float32Array(attribute.count);
       for (let index = 0; index < attribute.count; index++) {
         const x = attribute.getX(index), y = attribute.getY(index), z = attribute.getZ(index);
         const vertical = (y - centerY) / radiusY, horizontal = (x - centerX) / radiusX;
-        const front = Math.max(0, Math.min(1, (z - centerZ) / Math.max(0.001, bounds.max.z - centerZ)));
         const verticalFalloff = Math.exp(-0.5 * vertical * vertical);
         const horizontalFalloff = Math.exp(-0.5 * horizontal * horizontal);
-        profile[index] = verticalFalloff * horizontalFalloff * front;
+        // No front/back gate: some body models face -Z, others +Z.
+        profile[index] = verticalFalloff * horizontalFalloff;
       }
-      bellyVertexData = { geometry, attribute, original, profile, depth };
+      bellyVertexData = { geometry, attribute, original, profile, depth, centerX, centerZ };
     }
     const boneAliases = [
       ["skl_root", ["sklroot","root","bodyroot"]], ["hip", ["hip","hips","pelvis"]],
