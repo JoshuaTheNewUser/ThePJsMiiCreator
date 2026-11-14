@@ -90,8 +90,16 @@ async function openModelExportDialog(e, t) {
           } else
             try {
               let he = await exportMiiModel(m, e, c, m.main.exportMode === "animation" ? m.main.animation : null);
+              if (!he?.data) throw new Error("The exporter returned no GLB data.");
               downloadBinary(he.data, he.name);
-            } catch (he) {}
+            } catch (he) {
+              console.error("Mii GLB export failed:", he);
+              Modal.alert(
+                translate("Export failed"),
+                String(he?.message || he || "Unknown GLB export error"),
+                "body",
+              );
+            }
           if ((jp(n), !yk))
             (Modal.alert(
               translate("Notice"),
@@ -475,7 +483,7 @@ Can help in some programs (i.e. game engines).`),
     s.style({ display: "flex" });
 }
 function exportMiiModel(e, t, r, animationName, i) {
-  return new Promise(async (o) => {
+  return new Promise(async (o, reject) => {
     let s = await getRendererSetting("modelExportTexResolution");
     if (((s = Number(s)), isNaN(s))) s = 1024;
     let a = await getRendererSetting("modelExportMaterialType"),
@@ -908,6 +916,7 @@ function exportMiiModel(e, t, r, animationName, i) {
       new Rp().parse(
         v.miiGroup,
         async (S) => {
+          try {
           if (S instanceof ArrayBuffer) {
             setTimeout(() => {
               getBodyModels().forEach((L) => {
@@ -1140,8 +1149,15 @@ Please use a 3D software to flip the hair and forehead manually!`),
                 _.dispose();
               }));
           }
+          } catch (error) {
+            console.error("Animated GLB export processing failed:", error);
+            reject(error);
+          }
         },
-        (S) => {},
+        (S) => {
+          console.error("GLB exporter failed:", S);
+          reject(S instanceof Error ? S : new Error(String(S)));
+        },
         {
           binary: !0,
           animations: (() => {
