@@ -306,6 +306,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openAnimationStudio()),
       )),
+      (this.ui.customPoseMakerButton = addButtonSounds(
+        new Html("button")
+          .text(translate("Custom Pose Maker"))
+          .style({
+            position: "absolute",
+            top: "1rem",
+            right: "10rem",
+            "z-index": "4",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openCustomPoseMaker()),
+      )),
       getSetting("shaderTypeN").then((e) => {
         ((this.#g = e),
           getSetting("bodyModelN").then((t) => {
@@ -449,6 +461,189 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
       close,
     );
     (this.ui.mii.append(panel), (this.ui.animationStudioPanel = panel));
+  }
+  openCustomPoseMaker() {
+    if (this.ui.customPoseMakerPanel) {
+      this.ui.customPoseMakerPanel.cleanup();
+      this.ui.customPoseMakerPanel = null;
+      return;
+    }
+    let scene = this.ui.scene,
+      body = scene?.bodyModels?.get(this.mii.gender),
+      root = body?.model?.scene,
+      skinnedMesh = null;
+    if (!root) {
+      Notify.show(translate("Custom Pose Maker"), translate("The 3D body model is not ready yet."));
+      return;
+    }
+    root.traverse((object) => {
+      if (!skinnedMesh && object.isSkinnedMesh && object.skeleton) skinnedMesh = object;
+    });
+    let bones = skinnedMesh?.skeleton?.bones || [];
+    if (bones.length === 0) {
+      Notify.show(translate("Custom Pose Maker"), translate("No editable bones were found in this body model."));
+      return;
+    }
+    let actions = body.actions;
+    if (actions) actions.forEach((action) => (action.paused = true));
+    let originals = new Map(),
+      offsets = new Map();
+    for (let bone of bones) {
+      originals.set(bone.name, bone.quaternion.clone());
+      offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+    }
+    let panel = new Html("div").classOn("custom-pose-maker-panel").style({
+        position: "absolute",
+        top: "4.5rem",
+        left: "1rem",
+        width: "min(340px, calc(100vw - 2rem))",
+        "max-height": "min(70vh, 560px)",
+        "overflow-y": "auto",
+        "box-sizing": "border-box",
+        padding: "14px",
+        display: "flex",
+        "flex-direction": "column",
+        gap: "10px",
+        color: "var(--text)",
+        background: "var(--container)",
+        border: "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "box-shadow": "0 8px 28px #0005",
+        "z-index": "5",
+      }),
+      heading = new Html("div").text(translate("Custom Pose Maker")).style({
+        "font-weight": "700",
+        "font-size": "1.05rem",
+      }),
+      help = new Html("div").text(translate("Choose a bone and rotate it on each axis. The preview updates live.")).style({
+        "font-size": "0.85rem",
+        opacity: "0.8",
+      }),
+      boneSelect = new Html("select").style({
+        width: "100%",
+        padding: "8px",
+        "border-radius": "8px",
+        background: "var(--background)",
+        color: "var(--text)",
+      }),
+      axisControls = new Html("div").style({
+        display: "flex",
+        "flex-direction": "column",
+        gap: "9px",
+      }),
+      makeAxisControl = (axis) => {
+        let label = new Html("label").style({
+            display: "flex",
+            "justify-content": "space-between",
+            "align-items": "center",
+            gap: "8px",
+          }),
+          value = new Html("span").text("0°"),
+          input = new Html("input").attr({
+            type: "range",
+            min: "-180",
+            max: "180",
+            step: "1",
+            value: "0",
+          }).style({ width: "100%" });
+        label.appendMany(new Html("span").text(axis.toUpperCase()), value);
+        input.on("input", () => {
+          let offset = offsets.get(boneSelect.getValue());
+          if (!offset) return;
+          offset[axis] = Number(input.getValue());
+          value.text(offset[axis] + "°");
+          applyBone(boneSelect.getValue());
+        });
+        return { label, input, value };
+      },
+      axisX = makeAxisControl("x"),
+      axisY = makeAxisControl("y"),
+      axisZ = makeAxisControl("z"),
+      applyBone = (name) => {
+        let bone = bones.find((item) => item.name === name),
+          offset = offsets.get(name),
+          base = originals.get(name);
+        if (!bone || !offset || !base) return;
+        let delta = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(
+            offset.x * THREE.MathUtils.DEG2RAD,
+            offset.y * THREE.MathUtils.DEG2RAD,
+            offset.z * THREE.MathUtils.DEG2RAD,
+            bone.rotation.order,
+          ),
+        );
+        bone.quaternion.copy(base).multiply(delta);
+        bone.updateMatrixWorld(!0);
+      },
+      updateControls = () => {
+        let offset = offsets.get(boneSelect.getValue()) || { x: 0, y: 0, z: 0 };
+        for (let [control, axis] of [[axisX, "x"], [axisY, "y"], [axisZ, "z"]]) {
+          control.input.val(String(offset[axis]));
+          control.value.text(offset[axis] + "°");
+        }
+      },
+      resetCurrent = () => {
+        offsets.set(boneSelect.getValue(), { x: 0, y: 0, z: 0 });
+        applyBone(boneSelect.getValue());
+        updateControls();
+      },
+      resetAll = () => {
+        for (let bone of bones) {
+          offsets.set(bone.name, { x: 0, y: 0, z: 0 });
+          bone.quaternion.copy(originals.get(bone.name));
+          bone.updateMatrixWorld(!0);
+        }
+        updateControls();
+      },
+      exportPose = () => {
+        let pose = {
+          format: "ThePJsMiiCreator.CustomPose",
+          version: 1,
+          bodyModel: scene.bodyModel,
+          gender: this.mii.gender,
+          bones: Object.fromEntries(
+            Array.from(offsets.entries()).filter(([, value]) => value.x || value.y || value.z),
+          ),
+        };
+        let blob = new Blob([JSON.stringify(pose, null, 2)], { type: "application/json" }),
+          url = URL.createObjectURL(blob),
+          link = document.createElement("a");
+        link.href = url;
+        link.download = (this.mii.nickname.trim() || "Mii") + "-custom-pose.json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      makeButton = (label, callback) =>
+        addButtonSounds(
+          new Html("button").text(label).style({ width: "100%" }).on("click", callback),
+        );
+    for (let index = 0; index < bones.length; index++)
+      new Html("option")
+        .attr({ value: bones[index].name })
+        .text(bones[index].name || "Bone " + index)
+        .appendTo(boneSelect);
+    boneSelect.on("change", updateControls);
+    let buttons = new Html("div").style({
+      display: "grid",
+      "grid-template-columns": "1fr 1fr",
+      gap: "8px",
+    });
+    buttons.appendMany(
+      makeButton(translate("Reset bone"), resetCurrent),
+      makeButton(translate("Reset all"), resetAll),
+      makeButton(translate("Export pose JSON"), exportPose),
+      makeButton(translate("Close"), () => {
+        panel.cleanup();
+        this.ui.customPoseMakerPanel = null;
+      }),
+    );
+    axisControls.appendMany(axisX.label, axisX.input, axisY.label, axisY.input, axisZ.label, axisZ.input);
+    panel.appendMany(heading, help, boneSelect, axisControls, buttons);
+    this.ui.mii.append(panel);
+    this.ui.customPoseMakerPanel = panel;
+    updateControls();
   }
   #g;
   get shaderType() {
