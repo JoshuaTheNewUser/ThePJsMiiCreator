@@ -327,6 +327,18 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
           .appendTo(this.ui.mii)
           .on("click", () => this.openCustomPoseMaker()),
       )),
+      (this.ui.sandboxButton = addButtonSounds(
+        new Html("button")
+          .text("🧪 Sandbox Mode")
+          .style({
+            position: "absolute",
+            top: "7rem",
+            left: "1rem",
+            "z-index": "4",
+          })
+          .appendTo(this.ui.mii)
+          .on("click", () => this.openSandboxMode()),
+      )),
       (this.ui.modelLabButton = addButtonSounds(
         new Html("button")
           .text("Model Lab")
@@ -385,6 +397,123 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
             this.#r(t);
           }));
       }));
+  }
+  openSandboxMode() {
+    if (this.ui.sandboxPanel) {
+      this.ui.sandboxPanel.cleanup();
+      this.ui.sandboxPanel = null;
+      return;
+    }
+    let body = this.ui.scene?.bodyModels?.get(this.mii.gender),
+      root = body?.model?.scene;
+    if (!root) {
+      Notify.show("Sandbox Mode", "The 3D model is not ready yet. Try again in a moment.");
+      return;
+    }
+    let originalScale = root.scale.clone(),
+      originalMaterials = [],
+      transformed = false,
+      panel = new Html("div").style({
+        position: "absolute",
+        left: "1rem",
+        top: "10rem",
+        width: "min(320px, calc(100vw - 2rem))",
+        "max-height": "min(60vh, 480px)",
+        "overflow-y": "auto",
+        "box-sizing": "border-box",
+        padding: "14px",
+        display: "flex",
+        "flex-direction": "column",
+        gap: "10px",
+        color: "var(--text)",
+        background: "var(--container)",
+        border: "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "box-shadow": "0 8px 28px #0005",
+        "z-index": "8",
+      }),
+      heading = new Html("div").text("🕹️ Sandbox Mode").style({
+        "font-weight": "700",
+        "font-size": "1.05rem",
+      }),
+      description = new Html("small").text("Free play: experiment with a silly fictional item and reset whenever you like."),
+      status = new Html("div").text("Form: Normal").style({ "font-weight": "600" }),
+      makeButton = (label, callback) =>
+        addButtonSounds(new Html("button").text(label).style({ width: "100%" }).on("click", callback)),
+      restore = () => {
+        root.scale.copy(originalScale);
+        for (let [mesh, material] of originalMaterials) mesh.material = material;
+        root.updateMatrixWorld(!0);
+        transformed = false;
+        status.text("Form: Normal");
+      },
+      applyBlueberry = (amount = 1.55) => {
+        if (!transformed) {
+          root.traverse((object) => {
+            if (!object.isMesh || !object.material) return;
+            let original = object.material;
+            originalMaterials.push([object, original]);
+            let tint = (material) => {
+              let copy = material.clone();
+              if (copy.color) copy.color.lerp(new THREE.Color("#397bd1"), 0.58);
+              return copy;
+            };
+            object.material = Array.isArray(original) ? original.map(tint) : tint(original);
+          });
+          transformed = true;
+        }
+        root.scale.set(
+          originalScale.x * amount,
+          originalScale.y * Math.max(1.12, amount * 0.82),
+          originalScale.z * amount,
+        );
+        root.updateMatrixWorld(!0);
+        status.text("Form: Blueberry mode 🫐 (" + Math.round(amount * 100) + "%)");
+      },
+      sizeLabel = new Html("label").text("Cartoon puff: 155%"),
+      sizeInput = new Html("input").attr({
+        type: "range",
+        min: "120",
+        max: "200",
+        step: "1",
+        value: "155",
+      }).style({ width: "100%" }),
+      itemButton = makeButton("🫐 Use TCM Gum", () => {
+        applyBlueberry(Number(sizeInput.getValue()) / 100);
+        Notify.show("TCM Gum", "Fictional item activated! Blueberry mode!");
+      }),
+      controls = new Html("div").style({
+        display: "grid",
+        "grid-template-columns": "1fr 1fr",
+        gap: "8px",
+      }),
+      close = () => {
+        restore();
+        panel.cleanup();
+        this.ui.sandboxPanel = null;
+      };
+    sizeInput.on("input", () => {
+      let amount = Number(sizeInput.getValue()) / 100;
+      sizeLabel.text("Cartoon puff: " + Math.round(amount * 100) + "%");
+      if (transformed) applyBlueberry(amount);
+    });
+    controls.appendMany(
+      makeButton("Reset character", () => {
+        restore();
+        sizeInput.val("155");
+        sizeLabel.text("Cartoon puff: 155%");
+      }),
+      makeButton("Random puff", () => {
+        let amount = 1.2 + Math.random() * 0.8;
+        sizeInput.val(String(Math.round(amount * 100)));
+        sizeLabel.text("Cartoon puff: " + Math.round(amount * 100) + "%");
+        applyBlueberry(amount);
+      }),
+      makeButton("Close sandbox", close),
+    );
+    panel.appendMany(heading, description, status, itemButton, sizeLabel, sizeInput, controls);
+    this.ui.mii.append(panel);
+    this.ui.sandboxPanel = panel;
   }
   openModelLab() {
     if (this.ui.modelLabPanel) {
@@ -1246,6 +1375,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
   async shutdown(e = !0, t = !0) {
     if (this.secretKeyHandler) document.removeEventListener("keydown", this.secretKeyHandler);
     if (this.ui?.secretVaultPanel) this.ui.secretVaultPanel.cleanup();
+    if (this.ui?.sandboxPanel) this.ui.sandboxPanel.cleanup();
     if (this.ui?.secretVaultButton) this.ui.secretVaultButton.cleanup();
     if ((document.removeEventListener("pointerdown", dG), this.#o)) this.#o();
     if (e) {
