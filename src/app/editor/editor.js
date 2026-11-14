@@ -2514,7 +2514,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     const startButton = makeControl("▶ Start / Restart", () => startGame());
     const leftButton = makeControl("◀ Left", () => { player.vx = -4; });
     const rightButton = makeControl("Right ▶", () => { player.vx = 4; });
-    const jumpButton = makeControl("⬆ Jump", jump);
+    const jumpButton = makeControl("⬆ Jump", () => jump());
     const stopButton = makeControl("Ⅱ Pause", () => { paused = !paused; });
     const modelButton = makeControl("🧊 Export this Mii as 3D GLB", () => openModelExportDialog(this.mii));
     controls.appendMany(startButton, leftButton, rightButton, jumpButton, stopButton, modelButton);
