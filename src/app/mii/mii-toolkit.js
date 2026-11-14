@@ -59,6 +59,23 @@ function installMiiToolkitHub() {
         <button id="pj-mii-toolkit-export" type="button" disabled>Export converted file</button>
       </div>
       <div id="pj-mii-toolkit-status" aria-live="polite">Choose a supported Mii data file to inspect it.</div>
+      <h3>MiiJS Extended Format Lab</h3>
+      <p>Optional MiiJS 3.1.1 engine for broader Mii format detection, import, conversion, JSON export and QR image export. The engine is loaded online from jsDelivr only when you press Load MiiJS.</p>
+      <div class="pj-toolkit-row">
+        <button id="pj-miijs-load" type="button">Load MiiJS engine (online)</button>
+        <button id="pj-miijs-import" type="button" disabled>Import Mii / QR image</button>
+        <input id="pj-miijs-file" type="file" accept=".mii,.rcd,.rsd,.ncd,.nsd,.cfcd,.cfsd,.ffcd,.ffsd,.charinfo,.studio,.mnms,.ltd,.fedex,.fsdex,.png,.jpg,.jpeg,.webp,.bin" style="display:none">
+      </div>
+      <div class="pj-toolkit-row">
+        <label for="pj-miijs-format">Output format</label>
+        <select id="pj-miijs-format" disabled><option value="">Load MiiJS first</option></select>
+      </div>
+      <div class="pj-toolkit-row">
+        <button id="pj-miijs-export" type="button" disabled>Export selected format</button>
+        <button id="pj-miijs-json" type="button" disabled>Export Mii JSON</button>
+        <button id="pj-miijs-qr" type="button" disabled>Export 3DS QR PNG</button>
+      </div>
+      <div id="pj-miijs-status" aria-live="polite" class="pj-toolkit-card">MiiJS is not loaded. The existing creator parser remains available without it.</div>
       <h3>FFL Resource Lab · JavaScript extractor</h3>
       <p>Extracts shape meshes as GLB and textures as PNG from a compatible FFRA resource archive. Everything runs locally in your browser.</p>
       <div class="pj-toolkit-row"><input id="pj-ffl-archive" type="file" accept=".dat,.bin,application/octet-stream" aria-label="Choose FFL resource archive"></div>
@@ -85,6 +102,90 @@ function installMiiToolkitHub() {
     </section>`;
   document.body.appendChild(overlay);
 
+
+
+  const miijsLoadButton = overlay.querySelector("#pj-miijs-load");
+  const miijsImportButton = overlay.querySelector("#pj-miijs-import");
+  const miijsFileInput = overlay.querySelector("#pj-miijs-file");
+  const miijsFormatSelect = overlay.querySelector("#pj-miijs-format");
+  const miijsExportButton = overlay.querySelector("#pj-miijs-export");
+  const miijsJsonButton = overlay.querySelector("#pj-miijs-json");
+  const miijsQrButton = overlay.querySelector("#pj-miijs-qr");
+  const miijsStatus = overlay.querySelector("#pj-miijs-status");
+  let miijsModule = null, miijsMii = null, miijsLoadPromise = null;
+  const miijsDownload = (data, filename, mime = "application/octet-stream") => {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob), link = document.createElement("a");
+    link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  };
+  miijsLoadButton.addEventListener("click", async () => {
+    if (miijsModule) return;
+    miijsLoadButton.disabled = true;
+    miijsStatus.textContent = "Loading MiiJS 3.1.1 from jsDelivr…";
+    try {
+      miijsLoadPromise ||= import("https://cdn.jsdelivr.net/npm/miijs@3.1.1/dist/miijs.browser.js");
+      miijsModule = await miijsLoadPromise;
+      const formats = miijsModule.MiiFormats || {};
+      const seen = new Set();
+      miijsFormatSelect.innerHTML = "";
+      for (const [name, value] of Object.entries(formats)) {
+        if (typeof value !== "string" || seen.has(value)) continue;
+        seen.add(value);
+        const option = document.createElement("option"); option.value = value; option.textContent = name + " · " + value;
+        miijsFormatSelect.appendChild(option);
+      }
+      if (!miijsFormatSelect.options.length) throw new Error("MiiJS did not expose its format list.");
+      miijsFormatSelect.disabled = false;
+      miijsImportButton.disabled = false;
+      miijsStatus.textContent = "✓ MiiJS loaded. Supported formats: " + seen.size + ". Select a Mii file or a QR image.";
+    } catch (error) {
+      miijsLoadPromise = null;
+      miijsStatus.textContent = "MiiJS could not load: " + (error && error.message ? error.message : String(error));
+      miijsLoadButton.disabled = false;
+    }
+  });
+  miijsImportButton.addEventListener("click", () => miijsFileInput.click());
+  miijsFileInput.addEventListener("change", async () => {
+    const file = miijsFileInput.files && miijsFileInput.files[0]; miijsFileInput.value = "";
+    if (!file || !miijsModule) return;
+    miijsStatus.textContent = "Detecting and decoding " + file.name + "…";
+    try {
+      const buffer = new Uint8Array(await file.arrayBuffer());
+      const detected = miijsModule.detectMiiFormat ? miijsModule.detectMiiFormat(buffer) : [];
+      miijsMii = await miijsModule.Mii.create(buffer);
+      const fields = miijsMii.fields || {};
+      const meta = fields.meta || {};
+      miijsExportButton.disabled = false; miijsJsonButton.disabled = false; miijsQrButton.disabled = false;
+      miijsStatus.textContent = "✓ Imported with MiiJS\\nName: " + (meta.name || "(unnamed)") +
+        "\\nCreator: " + (meta.creatorName || "(not stored)") +
+        "\\nDetected formats: " + (detected.length ? detected.join(", ") : "MiiJS recognized the data") +
+        "\\nFields available for JSON export: " + Object.keys(fields).length;
+    } catch (error) {
+      miijsMii = null; miijsExportButton.disabled = true; miijsJsonButton.disabled = true; miijsQrButton.disabled = true;
+      miijsStatus.textContent = "MiiJS import failed: " + (error && error.message ? error.message : String(error));
+    }
+  });
+  miijsExportButton.addEventListener("click", async () => {
+    if (!miijsMii) return;
+    try {
+      const format = miijsFormatSelect.value, data = await miijsMii.encode(format);
+      miijsDownload(data, (miijsMii.fields?.meta?.name || "mii") + "." + format);
+      miijsStatus.textContent += "\\n✓ Exported " + format + ".";
+    } catch (error) { miijsStatus.textContent += "\\nExport failed: " + String(error?.message || error); }
+  });
+  miijsJsonButton.addEventListener("click", () => {
+    if (!miijsMii) return;
+    miijsDownload(JSON.stringify(miijsMii.toJSON(), null, 2), (miijsMii.fields?.meta?.name || "mii") + "-miijs.json", "application/json");
+  });
+  miijsQrButton.addEventListener("click", async () => {
+    if (!miijsMii) return;
+    try {
+      const data = await miijsMii.toQR("3DS");
+      miijsDownload(data, (miijsMii.fields?.meta?.name || "mii") + "-3ds-qr.png", "image/png");
+      miijsStatus.textContent += "\\n✓ Generated a 3DS QR PNG.";
+    } catch (error) { miijsStatus.textContent += "\\nQR export failed: " + String(error?.message || error); }
+  });
 
   const fflFileInput = overlay.querySelector("#pj-ffl-archive");
   const fflExtractButton = overlay.querySelector("#pj-ffl-extract");
