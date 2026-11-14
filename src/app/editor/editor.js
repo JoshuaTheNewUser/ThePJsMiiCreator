@@ -2527,7 +2527,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
     const ctx = canvas.getContext("2d");
     const player = { x: 90, y: 300, vx: 0, vy: 0, w: 34, h: 62, grounded: false };
     let score = 0, lives = 3, running = false, paused = false, raf = 0, last = 0, spawn = 0;
-    let stars = [], obstacles = [], frame = 0;
+    let stars = [], obstacles = [], frame = 0, lastTimeScore = 0;
     const bestKey = "pjs-mii-game-best";
     const hair = COMMON_COLORS_HEX[this.mii.hairColor] || "#27352e";
     const skin = ["#f4c7a1", "#e8b18d", "#c98d68", "#8b5b42"][Math.max(0, Math.min(3, this.mii.facelineColor || 0))] || "#e8b18d";
@@ -2564,10 +2564,10 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         ctx.font = "17px sans-serif"; ctx.fillText("Collect stars • dodge the blocks", 450, 220);
       }
     };
-    const stopGame = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; };
+    const stopGame = () => { running = false; if (raf) cancelAnimationFrame(raf); raf = 0; if (score > 0) { const best = Math.max(score, Number(localStorage.getItem(bestKey) || 0)); localStorage.setItem(bestKey, String(best)); updateStats(); } };
     const jump = () => { if (running && !paused && player.grounded) { player.vy = -11; player.grounded = false; } };
     const startGame = () => {
-      stopGame(); score = 0; lives = 3; spawn = 0; frame = 0; stars = []; obstacles = [];
+      stopGame(); score = 0; lives = 3; spawn = 0; frame = 0; lastTimeScore = 0; stars = []; obstacles = [];
       Object.assign(player, { x: 90, y: 300, vx: 0, vy: 0, grounded: false });
       running = true; paused = false; last = performance.now(); updateStats(); raf = requestAnimationFrame(tick);
     };
@@ -2595,7 +2595,7 @@ If you want to use all Mii Creator features, change it in Settings -> Editor.`),
         if (hit) { lives--; player.x = Math.max(35, player.x - 45); updateStats(); if (lives <= 0) { running = false; const best = Math.max(score, Number(localStorage.getItem(bestKey) || 0)); localStorage.setItem(bestKey, String(best)); updateStats(); } return false; }
         return o.x > -50;
       });
-      if (Math.floor(frame) % 120 === 0) score += 1;
+      if (Math.floor(frame / 120) > lastTimeScore) { score += Math.floor(frame / 120) - lastTimeScore; lastTimeScore = Math.floor(frame / 120); }
       updateStats(); draw();
     };
     const keyDown = (event) => {
